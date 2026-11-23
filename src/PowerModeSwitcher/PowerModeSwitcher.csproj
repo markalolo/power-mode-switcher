@@ -1,0 +1,36 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <!-- Only for the tray icon (NotifyIcon). The UI itself is WPF. -->
+    <UseWindowsForms>true</UseWindowsForms>
+    <PlatformTarget>x64</PlatformTarget>
+    <AssemblyName>PowerModeSwitcher</AssemblyName>
+    <RootNamespace>PowerModeSwitcher</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\knob-balanced-sailboat.ico</ApplicationIcon>
+    <!-- Release builds from GitHub override this with the tag (v1.2.3 -> 1.2.3). -->
+    <Version>1.0.0</Version>
+    <Product>Power Mode Switcher</Product>
+    <Description>Switches the Windows 11 Power Mode with a desktop slider.</Description>
+    <!-- WFO0003 asks Windows Forms apps to set DPI awareness in code. This is a WPF app,
+         which takes it from app.manifest, so the manifest setting is correct here. -->
+    <NoWarn>$(NoWarn);WFO0003</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Keep Windows Forms names out of the way of WPF names; TrayIcon.cs refers to them explicitly. -->
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Tray icons, loaded at run time. Regenerate with tools\make-icons.ps1. -->
+    <Resource Include="Assets\*.ico" />
+  </ItemGroup>
+
+</Project>

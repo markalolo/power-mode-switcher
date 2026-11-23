@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <defs>
+    <radialGradient id="bgRocket" cx="40%" cy="35%" r="70%">
+      <stop offset="0" stop-color="#fb7185"/>
+      <stop offset="1" stop-color="#7f1d1d"/>
+    </radialGradient>
+  </defs>
+  <circle cx="64" cy="64" r="60" fill="url(#bgRocket)"/>
+  <circle cx="64" cy="64" r="58.5" fill="none" stroke="#ffffff" stroke-opacity=".35" stroke-width="3"/>
+  <g stroke="#ffffff" stroke-opacity=".55" stroke-width="3" stroke-linecap="round">
+    <path d="M34 82 L34 100"/>
+    <path d="M94 82 L94 100"/>
+    <path d="M27 70 L27 82"/>
+    <path d="M101 70 L101 82"/>
+  </g>
+  <path d="M51 79 C50 96 60 106 64 118 C68 106 78 96 77 79 Z" fill="#f97316"/>
+  <path d="M54.5 79 C54 92 61 100 64 110 C67 100 74 92 73.5 79 Z" fill="#fbbf24"/>
+  <path d="M58.5 79 C58.5 88 62 93 64 99 C66 93 69.5 88 69.5 79 Z" fill="#fff7d6"/>
+  <path d="M50 58 L38 78 L51 74 Z" fill="#1e293b"/>
+  <path d="M78 58 L90 78 L77 74 Z" fill="#1e293b"/>
+  <rect x="54" y="74" width="20" height="7" rx="2" fill="#475569"/>
+  <path d="M64 20 C77 31 81 50 78 75 L50 75 C47 50 51 31 64 20 Z" fill="#f8fafc"/>
+  <path d="M64 20 C70 25 74 31 76.5 38 L51.5 38 C54 31 58 25 64 20 Z" fill="#ef4444"/>
+  <circle cx="64" cy="52" r="7.5" fill="#38bdf8" stroke="#334155" stroke-width="3"/>
+  <circle cx="61.5" cy="49.5" r="2.2" fill="#ffffff" opacity=".85"/>
+</svg>

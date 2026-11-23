@@ -1,0 +1,183 @@
+<!--
+  Knob images as WPF vector drawings, converted by hand from the SVGs in this folder
+  (the SVGs are the source; keep both in sync). Vector, so they stay sharp at any scaling.
+  Each drawing starts with a transparent 128x128 square so it keeps the SVG's viewBox.
+-->
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:po="http://schemas.microsoft.com/winfx/2006/xaml/presentation/options"
+                    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+                    mc:Ignorable="po">
+
+    <!-- knob-performance-rocket.svg -->
+    <DrawingImage x:Key="KnobPerformance" po:Freeze="True">
+        <DrawingImage.Drawing>
+            <DrawingGroup>
+                <GeometryDrawing Brush="Transparent" Geometry="M0,0 H128 V128 H0 Z" />
+                <GeometryDrawing>
+                    <GeometryDrawing.Brush>
+                        <RadialGradientBrush Center="0.4,0.35" GradientOrigin="0.4,0.35" RadiusX="0.7" RadiusY="0.7">
+                            <GradientStop Offset="0" Color="#FB7185" />
+                            <GradientStop Offset="1" Color="#7F1D1D" />
+                        </RadialGradientBrush>
+                    </GeometryDrawing.Brush>
+                    <GeometryDrawing.Geometry>
+                        <EllipseGeometry Center="64,64" RadiusX="60" RadiusY="60" />
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+                <GeometryDrawing>
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="#59FFFFFF" Thickness="3" />
+                    </GeometryDrawing.Pen>
+                    <GeometryDrawing.Geometry>
+                        <EllipseGeometry Center="64,64" RadiusX="58.5" RadiusY="58.5" />
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+                <!-- speed lines -->
+                <GeometryDrawing Geometry="M34,82 L34,100 M94,82 L94,100 M27,70 L27,82 M101,70 L101,82">
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="#8CFFFFFF" Thickness="3" StartLineCap="Round" EndLineCap="Round" />
+                    </GeometryDrawing.Pen>
+                </GeometryDrawing>
+                <!-- flames -->
+                <GeometryDrawing Brush="#F97316" Geometry="M51,79 C50,96 60,106 64,118 C68,106 78,96 77,79 Z" />
+                <GeometryDrawing Brush="#FBBF24" Geometry="M54.5,79 C54,92 61,100 64,110 C67,100 74,92 73.5,79 Z" />
+                <GeometryDrawing Brush="#FFF7D6" Geometry="M58.5,79 C58.5,88 62,93 64,99 C66,93 69.5,88 69.5,79 Z" />
+                <!-- fins and nozzle -->
+                <GeometryDrawing Brush="#1E293B" Geometry="M50,58 L38,78 L51,74 Z" />
+                <GeometryDrawing Brush="#1E293B" Geometry="M78,58 L90,78 L77,74 Z" />
+                <GeometryDrawing Brush="#475569">
+                    <GeometryDrawing.Geometry>
+                        <RectangleGeometry Rect="54,74,20,7" RadiusX="2" RadiusY="2" />
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+                <!-- body and nose -->
+                <GeometryDrawing Brush="#F8FAFC" Geometry="M64,20 C77,31 81,50 78,75 L50,75 C47,50 51,31 64,20 Z" />
+                <GeometryDrawing Brush="#EF4444" Geometry="M64,20 C70,25 74,31 76.5,38 L51.5,38 C54,31 58,25 64,20 Z" />
+                <!-- window -->
+                <GeometryDrawing Brush="#38BDF8">
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="#334155" Thickness="3" />
+                    </GeometryDrawing.Pen>
+                    <GeometryDrawing.Geometry>
+                        <EllipseGeometry Center="64,52" RadiusX="7.5" RadiusY="7.5" />
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+                <GeometryDrawing Brush="#D9FFFFFF">
+                    <GeometryDrawing.Geometry>
+                        <EllipseGeometry Center="61.5,49.5" RadiusX="2.2" RadiusY="2.2" />
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+            </DrawingGroup>
+        </DrawingImage.Drawing>
+    </DrawingImage>
+
+    <!-- knob-balanced-sailboat.svg -->
+    <DrawingImage x:Key="KnobBalanced" po:Freeze="True">
+        <DrawingImage.Drawing>
+            <DrawingGroup>
+                <GeometryDrawing Brush="Transparent" Geometry="M0,0 H128 V128 H0 Z" />
+                <GeometryDrawing>
+                    <GeometryDrawing.Brush>
+                        <RadialGradientBrush Center="0.4,0.35" GradientOrigin="0.4,0.35" RadiusX="0.7" RadiusY="0.7">
+                            <GradientStop Offset="0" Color="#5EEAD4" />
+                            <GradientStop Offset="1" Color="#115E59" />
+                        </RadialGradientBrush>
+                    </GeometryDrawing.Brush>
+                    <GeometryDrawing.Geometry>
+                        <EllipseGeometry Center="64,64" RadiusX="60" RadiusY="60" />
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+                <GeometryDrawing>
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="#59FFFFFF" Thickness="3" />
+                    </GeometryDrawing.Pen>
+                    <GeometryDrawing.Geometry>
+                        <EllipseGeometry Center="64,64" RadiusX="58.5" RadiusY="58.5" />
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+                <!-- mast -->
+                <GeometryDrawing Geometry="M64,26 L64,78">
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="#334155" Thickness="3" StartLineCap="Round" EndLineCap="Round" />
+                    </GeometryDrawing.Pen>
+                </GeometryDrawing>
+                <!-- sails and hull -->
+                <GeometryDrawing Brush="#FFFFFF" Geometry="M67,28 L67,74 L94,74 Z" />
+                <GeometryDrawing Brush="#E2E8F0" Geometry="M61,36 L61,74 L40,74 Z" />
+                <GeometryDrawing Brush="#1E293B" Geometry="M34,79 L94,79 L84,92 L44,92 Z" />
+                <!-- waves -->
+                <GeometryDrawing Geometry="M24,100 q6,-5 12,0 t12,0 t12,0 t12,0 t12,0 t12,0 t12,0">
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="#BFFFFFFF" Thickness="3" StartLineCap="Round" EndLineCap="Round" />
+                    </GeometryDrawing.Pen>
+                </GeometryDrawing>
+            </DrawingGroup>
+        </DrawingImage.Drawing>
+    </DrawingImage>
+
+    <!-- knob-battery-ice.svg -->
+    <DrawingImage x:Key="KnobBattery" po:Freeze="True">
+        <DrawingImage.Drawing>
+            <DrawingGroup>
+                <GeometryDrawing Brush="Transparent" Geometry="M0,0 H128 V128 H0 Z" />
+                <GeometryDrawing>
+                    <GeometryDrawing.Brush>
+                        <RadialGradientBrush Center="0.4,0.35" GradientOrigin="0.4,0.35" RadiusX="0.7" RadiusY="0.7">
+                            <GradientStop Offset="0" Color="#7DD3FC" />
+                            <GradientStop Offset="1" Color="#075985" />
+                        </RadialGradientBrush>
+                    </GeometryDrawing.Brush>
+                    <GeometryDrawing.Geometry>
+                        <EllipseGeometry Center="64,64" RadiusX="60" RadiusY="60" />
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+                <GeometryDrawing>
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="#59FFFFFF" Thickness="3" />
+                    </GeometryDrawing.Pen>
+                    <GeometryDrawing.Geometry>
+                        <EllipseGeometry Center="64,64" RadiusX="58.5" RadiusY="58.5" />
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+                <!-- cube faces -->
+                <GeometryDrawing Brush="#F0FBFF" Geometry="M64,32 L92,47 L64,62 L36,47 Z">
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="#BFFFFFFF" Thickness="2.5" LineJoin="Round" />
+                    </GeometryDrawing.Pen>
+                </GeometryDrawing>
+                <GeometryDrawing Brush="#B6ECFD" Geometry="M36,47 L64,62 L64,94 L36,79 Z">
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="#BFFFFFFF" Thickness="2.5" LineJoin="Round" />
+                    </GeometryDrawing.Pen>
+                </GeometryDrawing>
+                <GeometryDrawing Brush="#74CDF2" Geometry="M64,62 L92,47 L92,79 L64,94 Z">
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="#BFFFFFFF" Thickness="2.5" LineJoin="Round" />
+                    </GeometryDrawing.Pen>
+                </GeometryDrawing>
+                <!-- highlights -->
+                <GeometryDrawing Geometry="M42,56 L42,72">
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="#D9FFFFFF" Thickness="3.5" StartLineCap="Round" EndLineCap="Round" />
+                    </GeometryDrawing.Pen>
+                </GeometryDrawing>
+                <GeometryDrawing Geometry="M48,61 L48,67">
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="#99FFFFFF" Thickness="3" StartLineCap="Round" EndLineCap="Round" />
+                    </GeometryDrawing.Pen>
+                </GeometryDrawing>
+                <GeometryDrawing Geometry="M56,44 L68,38">
+                    <GeometryDrawing.Pen>
+                        <Pen Brush="#E6FFFFFF" Thickness="3" StartLineCap="Round" EndLineCap="Round" />
+                    </GeometryDrawing.Pen>
+                </GeometryDrawing>
+                <!-- sparkles -->
+                <GeometryDrawing Brush="#FFFFFF" Geometry="M98,26 l2.5,6.5 l6.5,2.5 l-6.5,2.5 l-2.5,6.5 l-2.5,-6.5 l-6.5,-2.5 l6.5,-2.5 Z" />
+                <GeometryDrawing Brush="#D9FFFFFF" Geometry="M28,30 l1.6,4 l4,1.6 l-4,1.6 l-1.6,4 l-1.6,-4 l-4,-1.6 l4,-1.6 Z" />
+                <GeometryDrawing Brush="#B3FFFFFF" Geometry="M100,92 l1.4,3.6 l3.6,1.4 l-3.6,1.4 l-1.4,3.6 l-1.4,-3.6 l-3.6,-1.4 l3.6,-1.4 Z" />
+            </DrawingGroup>
+        </DrawingImage.Drawing>
+    </DrawingImage>
+
+</ResourceDictionary>

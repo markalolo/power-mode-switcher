@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <defs>
+    <radialGradient id="bgSail" cx="40%" cy="35%" r="70%">
+      <stop offset="0" stop-color="#5eead4"/>
+      <stop offset="1" stop-color="#115e59"/>
+    </radialGradient>
+  </defs>
+  <circle cx="64" cy="64" r="60" fill="url(#bgSail)"/>
+  <circle cx="64" cy="64" r="58.5" fill="none" stroke="#ffffff" stroke-opacity=".35" stroke-width="3"/>
+  <path d="M64 26 L64 78" stroke="#334155" stroke-width="3" stroke-linecap="round"/>
+  <path d="M67 28 L67 74 L94 74 Z" fill="#ffffff"/>
+  <path d="M61 36 L61 74 L40 74 Z" fill="#e2e8f0"/>
+  <path d="M34 79 L94 79 L84 92 L44 92 Z" fill="#1e293b"/>
+  <path d="M24 100 q6 -5 12 0 t12 0 t12 0 t12 0 t12 0 t12 0 t12 0" fill="none" stroke="#ffffff" stroke-opacity=".75" stroke-width="3" stroke-linecap="round"/>
+</svg>
