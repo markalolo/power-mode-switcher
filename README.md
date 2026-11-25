@@ -67,7 +67,7 @@ The menu follows your Windows light or dark mode.
 
 ## For developers
 
-- Built with C#, WPF and .NET 10 (`net10.0-windows`, x64). No NuGet packages.
+- Built with C#, WPF and .NET 10 (`net10.0-windows`, x64). The only NuGet package is [CsWin32](https://github.com/microsoft/CsWin32), which generates the Windows API declarations at build time (nothing extra ships with the app). Settings use System.Text.Json source generation.
 - Build: `dotnet build`
 - Run: `dotnet run --project src/PowerModeSwitcher`
 - Stop a running copy cleanly: `PowerModeSwitcher.exe --exit`

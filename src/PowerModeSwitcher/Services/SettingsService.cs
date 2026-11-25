@@ -26,11 +26,12 @@ public sealed class AppSettings
     public bool StartWithWindows { get; set; } = true;
 }
 
-/// <summary>Loads and saves %APPDATA%\PowerModeSwitcher\settings.json.</summary>
+/// <summary>
+/// Loads and saves %APPDATA%\PowerModeSwitcher\settings.json, using the source-generated
+/// serializer in AppJsonContext. Fields missing from an older file keep their defaults above.
+/// </summary>
 public sealed class SettingsService
 {
-    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
-
     public SettingsService()
         : this(Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
@@ -55,7 +56,7 @@ public sealed class SettingsService
         {
             if (File.Exists(FilePath))
             {
-                Settings = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(FilePath), JsonOptions) ?? new AppSettings();
+                Settings = JsonSerializer.Deserialize(File.ReadAllText(FilePath), AppJsonContext.Default.AppSettings) ?? new AppSettings();
                 return;
             }
         }
@@ -76,7 +77,7 @@ public sealed class SettingsService
 
             // Write to a temp file first so a crash mid-write can't leave a half-written file.
             string tempPath = FilePath + ".tmp";
-            File.WriteAllText(tempPath, JsonSerializer.Serialize(Settings, JsonOptions));
+            File.WriteAllText(tempPath, JsonSerializer.Serialize(Settings, AppJsonContext.Default.AppSettings));
             File.Move(tempPath, FilePath, overwrite: true);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)

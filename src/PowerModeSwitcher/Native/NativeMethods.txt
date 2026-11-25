@@ -1,0 +1,40 @@
+// Documented Win32 APIs the app uses. CsWin32 generates their declarations at build time
+// (in the Windows.Win32 namespace, class PInvoke). The undocumented Power Mode overlay
+// functions are not in Windows metadata; they are hand-written in PowerOverlayApi.cs.
+
+// Desktop-level window: style, z-order, focus (Services/DesktopZOrder.cs)
+GetWindowLongPtr
+SetWindowLongPtr
+SetWindowPos
+SetForegroundWindow
+WINDOWPOS
+WINDOW_EX_STYLE
+SET_WINDOW_POS_FLAGS
+HWND_BOTTOM
+WM_WINDOWPOSCHANGING
+WM_MOUSEACTIVATE
+MA_NOACTIVATE
+
+// Position and monitors (Services/ScreenPlacement.cs)
+GetWindowRect
+GetCursorPos
+MonitorFromPoint
+GetMonitorInfo
+GetDpiForWindow
+
+// Rounded menu corners (TrayIcon.cs)
+DwmSetWindowAttribute
+DWMWINDOWATTRIBUTE
+DWM_WINDOW_CORNER_PREFERENCE
+
+// Power source, Energy Saver, change notifications (Services/PowerModeService.cs)
+GetSystemPowerStatus
+PowerRegisterForEffectivePowerModeNotifications
+PowerUnregisterFromEffectivePowerModeNotifications
+EFFECTIVE_POWER_MODE_V2
+PowerSettingRegisterNotification
+PowerSettingUnregisterNotification
+DEVICE_NOTIFY_SUBSCRIBE_PARAMETERS
+POWERBROADCAST_SETTING
+PBT_POWERSETTINGCHANGE
+GUID_ENERGY_SAVER_STATUS

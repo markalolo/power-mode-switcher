@@ -1,4 +1,8 @@
-using PowerModeSwitcher.Native;
+using Windows.Win32;
+using Windows.Win32.Foundation;
+using Windows.Win32.Graphics.Gdi;
+using Windows.Win32.UI.WindowsAndMessaging;
+using Point = System.Drawing.Point;
 
 namespace PowerModeSwitcher.Services;
 
@@ -11,51 +15,50 @@ internal static class ScreenPlacement
     // Gap from the screen edges for the default bottom-right spot, at 100% scaling.
     private const int EdgeMargin = 24;
 
-    public static (int X, int Y) GetWindowPosition(IntPtr hwnd)
+    public static (int X, int Y) GetWindowPosition(nint hwnd)
     {
-        NativeMethods.GetWindowRect(hwnd, out NativeMethods.RECT rect);
-        return (rect.Left, rect.Top);
+        PInvoke.GetWindowRect(new HWND(hwnd), out RECT rect);
+        return (rect.left, rect.top);
     }
 
     public static (int X, int Y) GetCursorPosition()
     {
-        NativeMethods.GetCursorPos(out NativeMethods.POINT point);
+        PInvoke.GetCursorPos(out Point point);
         return (point.X, point.Y);
     }
 
-    public static void MoveWindow(IntPtr hwnd, int x, int y) =>
-        NativeMethods.SetWindowPos(hwnd, IntPtr.Zero, x, y, 0, 0,
-            NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE);
+    public static void MoveWindow(nint hwnd, int x, int y) =>
+        PInvoke.SetWindowPos(new HWND(hwnd), default, x, y, 0, 0,
+            SET_WINDOW_POS_FLAGS.SWP_NOSIZE | SET_WINDOW_POS_FLAGS.SWP_NOZORDER | SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE);
 
     /// <summary>
     /// Puts the window at the saved spot if that spot is on a connected screen (nudged so the
     /// whole widget is visible). Otherwise puts it at the bottom-right of the primary screen.
     /// </summary>
-    public static void PlaceOnScreen(IntPtr hwnd, int? savedLeft, int? savedTop)
+    public static void PlaceOnScreen(nint hwnd, int? savedLeft, int? savedTop)
     {
-        NativeMethods.GetWindowRect(hwnd, out NativeMethods.RECT rect);
-        int width = rect.Right - rect.Left;
-        int height = rect.Bottom - rect.Top;
+        PInvoke.GetWindowRect(new HWND(hwnd), out RECT rect);
+        int width = rect.right - rect.left;
+        int height = rect.bottom - rect.top;
 
         if (savedLeft is int left && savedTop is int top)
         {
-            var center = new NativeMethods.POINT { X = left + width / 2, Y = top + height / 2 };
-            IntPtr monitor = NativeMethods.MonitorFromPoint(center, NativeMethods.MONITOR_DEFAULTTONULL);
-            if (monitor != IntPtr.Zero && TryGetWorkArea(monitor, out NativeMethods.RECT work))
+            var center = new Point(left + width / 2, top + height / 2);
+            HMONITOR monitor = PInvoke.MonitorFromPoint(center, MONITOR_FROM_FLAGS.MONITOR_DEFAULTTONULL);
+            if (!monitor.IsNull && TryGetWorkArea(monitor, out RECT work))
             {
-                left = Math.Clamp(left, work.Left, Math.Max(work.Left, work.Right - width));
-                top = Math.Clamp(top, work.Top, Math.Max(work.Top, work.Bottom - height));
+                left = Math.Clamp(left, work.left, Math.Max(work.left, work.right - width));
+                top = Math.Clamp(top, work.top, Math.Max(work.top, work.bottom - height));
                 MoveWindow(hwnd, left, top);
                 return;
             }
         }
 
-        IntPtr primary = NativeMethods.MonitorFromPoint(default, NativeMethods.MONITOR_DEFAULTTOPRIMARY);
-        if (!TryGetWorkArea(primary, out NativeMethods.RECT primaryWork)) return;
+        HMONITOR primary = PInvoke.MonitorFromPoint(default, MONITOR_FROM_FLAGS.MONITOR_DEFAULTTOPRIMARY);
+        if (!TryGetWorkArea(primary, out RECT primaryWork)) return;
 
-        uint dpi = NativeMethods.GetDpiForWindow(hwnd);
-        int margin = (int)(EdgeMargin * (dpi == 0 ? 96 : dpi) / 96);
-        MoveWindow(hwnd, primaryWork.Right - width - margin, primaryWork.Bottom - height - margin);
+        int margin = (int)(EdgeMargin * DpiOf(hwnd) / 96);
+        MoveWindow(hwnd, primaryWork.right - width - margin, primaryWork.bottom - height - margin);
     }
 
     /// <summary>
@@ -63,35 +66,43 @@ internal static class ScreenPlacement
     /// the corner nearest the screen edge stays put. A widget in the bottom-right quarter of the
     /// screen keeps its bottom-right corner; one in the top-left quarter keeps its top-left; and so on.
     /// </summary>
-    public static (int X, int Y) PositionKeepingNearestCorner(IntPtr hwnd, double newWidthDips, double newHeightDips)
+    public static (int X, int Y) PositionKeepingNearestCorner(nint hwnd, double newWidthDips, double newHeightDips)
     {
-        NativeMethods.GetWindowRect(hwnd, out NativeMethods.RECT rect);
-        uint dpi = NativeMethods.GetDpiForWindow(hwnd);
-        double scale = (dpi == 0 ? 96 : dpi) / 96.0;
+        PInvoke.GetWindowRect(new HWND(hwnd), out RECT rect);
+        double scale = DpiOf(hwnd) / 96.0;
         int newWidth = (int)Math.Round(newWidthDips * scale);
         int newHeight = (int)Math.Round(newHeightDips * scale);
 
-        var center = new NativeMethods.POINT { X = (rect.Left + rect.Right) / 2, Y = (rect.Top + rect.Bottom) / 2 };
-        IntPtr monitor = NativeMethods.MonitorFromPoint(center, NativeMethods.MONITOR_DEFAULTTONEAREST);
-        if (!TryGetWorkArea(monitor, out NativeMethods.RECT work)) return (rect.Left, rect.Top);
+        var center = new Point((rect.left + rect.right) / 2, (rect.top + rect.bottom) / 2);
+        HMONITOR monitor = PInvoke.MonitorFromPoint(center, MONITOR_FROM_FLAGS.MONITOR_DEFAULTTONEAREST);
+        if (!TryGetWorkArea(monitor, out RECT work)) return (rect.left, rect.top);
 
-        bool nearRight = center.X > (work.Left + work.Right) / 2;
-        bool nearBottom = center.Y > (work.Top + work.Bottom) / 2;
-        return (nearRight ? rect.Right - newWidth : rect.Left,
-                nearBottom ? rect.Bottom - newHeight : rect.Top);
+        bool nearRight = center.X > (work.left + work.right) / 2;
+        bool nearBottom = center.Y > (work.top + work.bottom) / 2;
+        return (nearRight ? rect.right - newWidth : rect.left,
+                nearBottom ? rect.bottom - newHeight : rect.top);
     }
 
     /// <summary>If the window is no longer on a screen (for example a monitor was unplugged), bring it back.</summary>
-    public static void EnsureOnScreen(IntPtr hwnd)
+    public static void EnsureOnScreen(nint hwnd)
     {
         (int x, int y) = GetWindowPosition(hwnd);
         PlaceOnScreen(hwnd, x, y);
     }
 
-    private static bool TryGetWorkArea(IntPtr monitor, out NativeMethods.RECT workArea)
+    private static uint DpiOf(nint hwnd)
     {
-        var info = new NativeMethods.MONITORINFO { cbSize = System.Runtime.InteropServices.Marshal.SizeOf<NativeMethods.MONITORINFO>() };
-        bool ok = NativeMethods.GetMonitorInfo(monitor, ref info);
+        // GetDpiForWindow needs Windows 10 1607 (build 14393); assume 100% scaling before that.
+        if (!OperatingSystem.IsWindowsVersionAtLeast(10, 0, 14393)) return 96;
+
+        uint dpi = PInvoke.GetDpiForWindow(new HWND(hwnd));
+        return dpi == 0 ? 96 : dpi;
+    }
+
+    private static unsafe bool TryGetWorkArea(HMONITOR monitor, out RECT workArea)
+    {
+        var info = new MONITORINFO { cbSize = (uint)sizeof(MONITORINFO) };
+        bool ok = PInvoke.GetMonitorInfo(monitor, ref info);
         workArea = info.rcWork;
         return ok;
     }

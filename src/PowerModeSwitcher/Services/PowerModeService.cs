@@ -2,6 +2,10 @@ using System.ComponentModel;
 using System.Runtime.InteropServices;
 using Microsoft.Win32;
 using PowerModeSwitcher.Native;
+using Windows.Win32;
+using Windows.Win32.Foundation;
+using Windows.Win32.System.Power;
+using Windows.Win32.UI.WindowsAndMessaging;
 
 namespace PowerModeSwitcher.Services;
 
@@ -52,10 +56,16 @@ public sealed class PowerModeService : IDisposable
     private static readonly TimeSpan SafetyPollInterval = TimeSpan.FromSeconds(5);
 
     private SynchronizationContext? _uiContext;
-    private NativeMethods.EffectivePowerModeCallback? _effectiveModeCallback; // kept alive while registered
-    private IntPtr _effectiveModeRegistration;
-    private NativeMethods.DeviceNotifyCallback? _energySaverCallback; // kept alive while registered
-    private IntPtr _energySaverRegistration;
+
+    // Effective power mode notification. The delegate must stay alive while Windows holds it.
+    private EFFECTIVE_POWER_MODE_CALLBACK? _effectiveModeCallback;
+    private nint _effectiveModeRegistration;
+
+    // Energy Saver notification. Windows is given a pointer to the subscribe parameters, so they live
+    // in unmanaged memory (with the delegate kept alive) until the notification is unregistered.
+    private PDEVICE_NOTIFY_CALLBACK_ROUTINE? _energySaverCallback;
+    private nint _energySaverParameters;
+    private HPOWERNOTIFY _energySaverRegistration;
     private volatile int _energySaverStatus; // from GUID_ENERGY_SAVER_STATUS: 0 = off
     private Timer? _safetyPoll;
     private volatile bool _disposed;
@@ -78,36 +88,8 @@ public sealed class PowerModeService : IDisposable
         _uiContext = SynchronizationContext.Current
             ?? throw new InvalidOperationException("PowerModeService.Start must be called on the UI thread.");
 
-        // Documented API. Windows calls back when the effective power mode changes. We only use it
-        // as a trigger and then re-read the overlay, which is the source of truth for the slider.
-        _effectiveModeCallback = (_, _) => RequestRefresh();
-        try
-        {
-            int hr = NativeMethods.PowerRegisterForEffectivePowerModeNotifications(
-                NativeMethods.EFFECTIVE_POWER_MODE_V2, _effectiveModeCallback, IntPtr.Zero, out _effectiveModeRegistration);
-            if (hr != 0) _effectiveModeRegistration = IntPtr.Zero; // the safety poll still keeps us in sync
-        }
-        catch (EntryPointNotFoundException)
-        {
-            _effectiveModeRegistration = IntPtr.Zero;
-        }
-
-        // Documented API (Windows 11 24H2+). Energy Saver can be on even when plugged in, and the
-        // older Battery Saver flag does not report it. Windows sends the current value right away,
-        // then again on every change. On older Windows this fails and the Battery Saver flag is used.
-        _energySaverCallback = OnPowerSettingChanged;
-        try
-        {
-            Guid setting = NativeMethods.GUID_ENERGY_SAVER_STATUS;
-            var recipient = new NativeMethods.DEVICE_NOTIFY_SUBSCRIBE_PARAMETERS { Callback = _energySaverCallback, Context = IntPtr.Zero };
-            uint result = NativeMethods.PowerSettingRegisterNotification(
-                ref setting, NativeMethods.DEVICE_NOTIFY_CALLBACK, ref recipient, out _energySaverRegistration);
-            if (result != NativeMethods.ERROR_SUCCESS) _energySaverRegistration = IntPtr.Zero;
-        }
-        catch (EntryPointNotFoundException)
-        {
-            _energySaverRegistration = IntPtr.Zero;
-        }
+        RegisterEffectivePowerModeNotification();
+        RegisterEnergySaverNotification();
 
         // Plugging in, unplugging, and resume from sleep.
         SystemEvents.PowerModeChanged += OnSystemPowerModeChanged;
@@ -136,8 +118,8 @@ public sealed class PowerModeService : IDisposable
 
         try
         {
-            uint result = NativeMethods.PowerGetActualOverlayScheme(out Guid overlay);
-            if (result != NativeMethods.ERROR_SUCCESS)
+            var result = (WIN32_ERROR)PowerOverlayApi.PowerGetActualOverlayScheme(out Guid overlay);
+            if (result != WIN32_ERROR.ERROR_SUCCESS)
             {
                 return new PowerModeReading(PowerMode.Unknown, Guid.Empty, source, energySaverOn, DescribeError(result));
             }
@@ -165,8 +147,8 @@ public sealed class PowerModeService : IDisposable
 
         try
         {
-            uint result = NativeMethods.PowerSetActiveOverlayScheme(OverlayFromMode(mode));
-            error = result == NativeMethods.ERROR_SUCCESS ? null : DescribeError(result);
+            var result = (WIN32_ERROR)PowerOverlayApi.PowerSetActiveOverlayScheme(OverlayFromMode(mode));
+            error = result == WIN32_ERROR.ERROR_SUCCESS ? null : DescribeError(result);
         }
         catch (EntryPointNotFoundException)
         {
@@ -186,22 +168,7 @@ public sealed class PowerModeService : IDisposable
         _safetyPoll = null;
 
         SystemEvents.PowerModeChanged -= OnSystemPowerModeChanged;
-
-        if (_effectiveModeRegistration != IntPtr.Zero)
-        {
-            NativeMethods.PowerUnregisterFromEffectivePowerModeNotifications(_effectiveModeRegistration);
-            _effectiveModeRegistration = IntPtr.Zero;
-        }
-        GC.KeepAlive(_effectiveModeCallback);
-        _effectiveModeCallback = null;
-
-        if (_energySaverRegistration != IntPtr.Zero)
-        {
-            NativeMethods.PowerSettingUnregisterNotification(_energySaverRegistration);
-            _energySaverRegistration = IntPtr.Zero;
-        }
-        GC.KeepAlive(_energySaverCallback);
-        _energySaverCallback = null;
+        UnregisterNotifications();
     }
 
     public static PowerMode ModeFromOverlay(Guid overlay)
@@ -234,14 +201,88 @@ public sealed class PowerModeService : IDisposable
         if (e.Mode is PowerModes.StatusChange or PowerModes.Resume) RequestRefresh();
     }
 
-    // Called by Windows on its own thread with a POWERBROADCAST_SETTING for GUID_ENERGY_SAVER_STATUS.
-    private uint OnPowerSettingChanged(IntPtr context, uint type, IntPtr setting)
-    {
-        if (type != NativeMethods.PBT_POWERSETTINGCHANGE || setting == IntPtr.Zero) return 0;
-        if (Marshal.PtrToStructure<Guid>(setting) != NativeMethods.GUID_ENERGY_SAVER_STATUS) return 0;
-        if (Marshal.ReadInt32(setting, NativeMethods.POWERBROADCAST_SETTING_LENGTH_OFFSET) < sizeof(int)) return 0;
+    // ---- Windows notifications ----
 
-        _energySaverStatus = Marshal.ReadInt32(setting, NativeMethods.POWERBROADCAST_SETTING_DATA_OFFSET);
+    /// <summary>
+    /// Documented API (Windows 10 1809+). Windows calls back when the effective power mode changes.
+    /// It is only a trigger: the slider always re-reads the actual overlay.
+    /// If registration fails, the 5-second safety poll still keeps the widget in sync.
+    /// </summary>
+    private unsafe void RegisterEffectivePowerModeNotification()
+    {
+        // Windows 10 1809 (build 17763) and later. Older Windows relies on the safety poll.
+        if (!OperatingSystem.IsWindowsVersionAtLeast(10, 0, 17763)) return;
+
+        _effectiveModeCallback = OnEffectivePowerModeChanged;
+        HRESULT hr = PInvoke.PowerRegisterForEffectivePowerModeNotifications(
+            PInvoke.EFFECTIVE_POWER_MODE_V2, _effectiveModeCallback, null, out void* registration);
+        if (hr.Value >= 0) _effectiveModeRegistration = (nint)registration;
+    }
+
+    /// <summary>
+    /// Documented API (Windows 11 24H2+). Energy Saver can be on even when plugged in, and the older
+    /// Battery Saver flag does not report it. Windows sends the current value right away, then again
+    /// on every change. On older Windows this fails and the Battery Saver flag is used instead.
+    /// </summary>
+    private unsafe void RegisterEnergySaverNotification()
+    {
+        _energySaverCallback = OnPowerSettingChanged;
+        try
+        {
+            var parameters = new DEVICE_NOTIFY_SUBSCRIBE_PARAMETERS { Callback = _energySaverCallback };
+            _energySaverParameters = Marshal.AllocHGlobal(Marshal.SizeOf<DEVICE_NOTIFY_SUBSCRIBE_PARAMETERS>());
+            Marshal.StructureToPtr(parameters, _energySaverParameters, fDeleteOld: false);
+
+            Guid setting = PInvoke.GUID_ENERGY_SAVER_STATUS;
+            void* registration;
+            WIN32_ERROR result = PInvoke.PowerSettingRegisterNotification(
+                &setting, REGISTER_NOTIFICATION_FLAGS.DEVICE_NOTIFY_CALLBACK, new HANDLE((void*)_energySaverParameters), &registration);
+            if (result == WIN32_ERROR.ERROR_SUCCESS) _energySaverRegistration = new HPOWERNOTIFY((nint)registration);
+        }
+        catch (EntryPointNotFoundException)
+        {
+            // Windows without Energy Saver: the Battery Saver flag is used instead.
+        }
+    }
+
+    private unsafe void UnregisterNotifications()
+    {
+        // Registration only happens on build 17763+, so the version check never skips a real unregister.
+        if (_effectiveModeRegistration != 0 && OperatingSystem.IsWindowsVersionAtLeast(10, 0, 17763))
+        {
+            PInvoke.PowerUnregisterFromEffectivePowerModeNotifications((void*)_effectiveModeRegistration);
+            _effectiveModeRegistration = 0;
+        }
+        GC.KeepAlive(_effectiveModeCallback);
+        _effectiveModeCallback = null;
+
+        if (!_energySaverRegistration.IsNull)
+        {
+            PInvoke.PowerSettingUnregisterNotification(_energySaverRegistration);
+            _energySaverRegistration = default;
+        }
+        if (_energySaverParameters != 0)
+        {
+            Marshal.FreeHGlobal(_energySaverParameters);
+            _energySaverParameters = 0;
+        }
+        GC.KeepAlive(_energySaverCallback);
+        _energySaverCallback = null;
+    }
+
+    // Called by Windows on its own thread.
+    private unsafe void OnEffectivePowerModeChanged(EFFECTIVE_POWER_MODE mode, void* context) => RequestRefresh();
+
+    // Called by Windows on its own thread with a POWERBROADCAST_SETTING for GUID_ENERGY_SAVER_STATUS.
+    private unsafe uint OnPowerSettingChanged(void* context, uint type, void* setting)
+    {
+        if (type != PInvoke.PBT_POWERSETTINGCHANGE || setting is null) return 0;
+
+        var broadcast = (POWERBROADCAST_SETTING*)setting;
+        if (broadcast->PowerSetting != PInvoke.GUID_ENERGY_SAVER_STATUS || broadcast->DataLength < sizeof(uint)) return 0;
+
+        // The data is a DWORD: 0 = Energy Saver off, otherwise on.
+        _energySaverStatus = (int)*(uint*)&broadcast->Data;
         RequestRefresh();
         return 0;
     }
@@ -257,7 +298,7 @@ public sealed class PowerModeService : IDisposable
     // Energy Saver is turned on, so Energy Saver comes from the notification above instead.
     private static (PowerSource Source, bool BatterySaverFlag) ReadPowerSource()
     {
-        if (!NativeMethods.GetSystemPowerStatus(out NativeMethods.SYSTEM_POWER_STATUS status))
+        if (!PInvoke.GetSystemPowerStatus(out SYSTEM_POWER_STATUS status))
         {
             return (PowerSource.Unknown, false);
         }
@@ -271,6 +312,6 @@ public sealed class PowerModeService : IDisposable
         return (source, status.SystemStatusFlag == 1);
     }
 
-    private static string DescribeError(uint code) =>
-        $"{new Win32Exception((int)code).Message} (error {code})";
+    private static string DescribeError(WIN32_ERROR code) =>
+        $"{new Win32Exception((int)code).Message} (error {(uint)code})";
 }

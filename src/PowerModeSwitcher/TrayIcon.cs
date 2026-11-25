@@ -1,7 +1,9 @@
 using System.IO;
 using System.Windows;
-using PowerModeSwitcher.Native;
 using PowerModeSwitcher.Services;
+using Windows.Win32;
+using Windows.Win32.Foundation;
+using Windows.Win32.Graphics.Dwm;
 using Forms = System.Windows.Forms;
 using DrawingIcon = System.Drawing.Icon;
 
@@ -113,10 +115,11 @@ internal sealed class TrayIcon : IDisposable
     }
 
     /// <summary>Windows 11 style rounded corners on the menu (ignored on older Windows).</summary>
-    private static void RoundCorners(IntPtr hwnd)
+    private static unsafe void RoundCorners(nint hwnd)
     {
-        int preference = NativeMethods.DWMWCP_ROUND;
-        NativeMethods.DwmSetWindowAttribute(hwnd, NativeMethods.DWMWA_WINDOW_CORNER_PREFERENCE, ref preference, sizeof(int));
+        DWM_WINDOW_CORNER_PREFERENCE preference = DWM_WINDOW_CORNER_PREFERENCE.DWMWCP_ROUND;
+        PInvoke.DwmSetWindowAttribute(new HWND(hwnd), DWMWINDOWATTRIBUTE.DWMWA_WINDOW_CORNER_PREFERENCE,
+            &preference, (uint)sizeof(DWM_WINDOW_CORNER_PREFERENCE));
     }
 
     private static string AppVersion() =>
