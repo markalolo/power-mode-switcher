@@ -258,6 +258,7 @@ A professional developer reviewed the repo and asked for two changes.
 - Win32: CsWin32 0.3.371 (build-time only) generates every documented declaration from `Native/NativeMethods.txt`, including `GUID_ENERGY_SAVER_STATUS`. `Native/PowerOverlayApi.cs` holds the two undocumented overlay functions as `[LibraryImport]`; they return `uint` (cast to `WIN32_ERROR`) because source-generated P/Invoke does not accept the generated enum. APIs newer than Windows 10 RTM (`PowerRegisterForEffectivePowerModeNotifications`, `GetDpiForWindow`) are behind `OperatingSystem.IsWindowsVersionAtLeast` checks, which the platform analyzer understands.
 - WinRT: `Windows.System.Power.PowerManager` (built into Windows) reports battery, power supply and saver status but not the power mode. The Windows App SDK's `PowerManager.EffectivePowerMode` does, but it needs the Windows App SDK runtime (heavy for an unpackaged WPF app) and only reports the *effective* mode, not the user's chosen overlay the slider needs. Kept the documented Win32 notification.
 - Framework-dependent .exe grew from 594 KB to 788 KB (generated code).
+- **Check passed (2026-11-24):** the full section 9 checklist passed on the development laptop with the Phase 6 build.
 
 ### Phase 7: Self-contained x64 build
 
