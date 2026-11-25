@@ -8,20 +8,31 @@ Instructions for Claude Code working in this repo.
 - When something needs a manual test, give numbered steps and say exactly what should happen.
 
 ## The project
-A small WPF widget (C#, .NET 10, `net10.0-windows`, x64) that switches Windows 11 Power Mode with a 3-position slider. **PLAN.md is the design reference**: read it before changing behavior, and keep it up to date when the design changes.
+A small WPF widget (C#, .NET 10, `net10.0-windows`) that switches Windows Power Mode with a vertical slider. **PLAN.md is the design reference**: read it before changing behavior, and keep it up to date when the design changes.
+
+Phases 0 to 5 are done. Round 2 (PLAN.md section 8b, Phases 6 to 9) is next: work in order and do not skip the check at the end of each phase. **Do not start Phase 9 (ARM64) until the owner says the ARM laptop is available.**
 
 ## Critical technical rules
 - Power Mode is controlled through power **overlay schemes** in `powrprof.dll` (`PowerSetActiveOverlayScheme`, `PowerGetActualOverlayScheme`, `PowerRegisterForEffectivePowerModeNotifications`). **Never use `powercfg /setactive`** to switch modes. That changes the power plan, which is the wrong layer on Modern Standby laptops.
-- Keep every P/Invoke declaration in `Native/NativeMethods.cs`, and keep the power calls in `Services/PowerModeService.cs`.
+- Keep native declarations in the `Native/` folder, and keep the power calls in `Services/PowerModeService.cs`.
+- Never assume the development laptop's overlay GUIDs or labels apply to every PC. From Phase 8, labels and stops come from the learned profile, with the built-in table as the default.
 - The app must never require administrator rights.
 - The widget must stay at the bottom of the z-order and never steal focus (see PLAN.md section 4).
 - Keep idle resource use minimal. No busy loops. The only timer is the 5-second safety poll.
 - Clean up on exit: unregister power notifications, dispose the tray icon.
 
+## Coding standards (from code review)
+- **JSON:** always use System.Text.Json **source generation** (`JsonSerializerContext` with `[JsonSerializable]`). Never call reflection-based `JsonSerializer` overloads. Any new type saved to disk gets added to the context.
+- **Windows APIs:** use **CsWin32** (`NativeMethods.txt`) for documented Win32 functions, structs and constants. Hand-write only what CsWin32 cannot generate (the undocumented overlay functions), using `[LibraryImport]`, never `[DllImport]`, with a comment saying why.
+- **No trimming:** do not enable `PublishTrimmed`. It is not supported for WPF.
+- Keep code tidy, with short comments on anything non-obvious. A professional developer may review changes.
+
 ## Commands
 - Build: `dotnet build`
 - Run: `dotnet run --project src/PowerModeSwitcher`
-- Publish: `dotnet publish src/PowerModeSwitcher -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o publish`
+- Publish (small): `dotnet publish src/PowerModeSwitcher -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o publish`
+- Publish (standalone, from Phase 7): `dotnet publish src/PowerModeSwitcher -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o publish-standalone`
+- Phase 9 adds the same two with `-r win-arm64`.
 - Before asking for a manual test, make sure the build succeeds with no warnings you introduced.
 - Stop any running copy of the app before rebuilding (the .exe is locked while running). Stop it cleanly with `PowerModeSwitcher.exe --exit`; force-killing it leaves a stale tray icon.
 
