@@ -137,9 +137,52 @@ Subkeys under HKLM\SYSTEM\CurrentControlSet\Control\Power\User\PowerSchemes:
 
 Notes: only Balanced is listed as a plan (Modern Standby hides the others, though their subkeys exist). The `3af9b8d9` subkey exists even on this Standard machine, so the presence of a subkey is not a signal for the mode set here.
 
-### Classic: Surface Laptop
+### Classic: Microsoft Surface Laptop Go, 2026-11-25
 
-To be added from the Surface's Copy diagnostics (PLAN.md Phase 8 check, step 6).
+```
+App:      version 0.0.0, X64 process   (GitHub Actions test build)
+Windows:  Windows 11 Pro, version 25H2 (build 26200.9974), X64
+Device:   Microsoft Corporation Surface Laptop Go
+
+Power source:   plugged in
+Energy Saver:   off
+Mode set:       Classic (Recommended / Better performance / Best performance), chosen in the one-time question
+  Setting: Classic; detected: none; question shown: yes
+  Last set by this app: plugged in ded574b5-45a0-4f42-8737-46345c09c238, on battery none
+Widget shows:   Best performance (top stop)
+
+Chosen power mode, plugged in:
+  documented API: ded574b5-45a0-4f42-8737-46345c09c238 (Max Performance Overlay)
+  registry:       ded574b5-45a0-4f42-8737-46345c09c238 (Max Performance Overlay)
+Chosen power mode, on battery:
+  documented API: 00000000-0000-0000-0000-000000000000 (No overlay)
+  registry:       00000000-0000-0000-0000-000000000000 (No overlay)
+Actual overlay:     ded574b5-45a0-4f42-8737-46345c09c238 (Max Performance Overlay)
+Effective overlay:  ded574b5-45a0-4f42-8737-46345c09c238 (Max Performance Overlay)
+Effective power mode: 4 (Max Performance)
+
+Active power plan:  381b4222-f694-41f0-9685-ff5bb260df2e Balanced
+Plan personality:   381b4222-f694-41f0-9685-ff5bb260df2e (Balanced)
+All power plans:
+  381b4222-f694-41f0-9685-ff5bb260df2e Balanced
+Subkeys under HKLM\SYSTEM\CurrentControlSet\Control\Power\User\PowerSchemes:
+  381b4222-f694-41f0-9685-ff5bb260df2e Balanced (recommended)
+  3af9b8d9-7c97-431d-ad78-34a8bfea439f High Performance Overlay
+  8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c High Performance
+  961cc777-2547-4f9d-8174-7d86181b8a7a Better Battery-life Overlay
+  a1841308-3541-4fab-bc81-f71556f20b4a Power Saver
+  ded574b5-45a0-4f42-8737-46345c09c238 Max Performance Overlay
+  e9a42b02-d5df-448d-aa00-03f14749eb61 Ultimate Performance
+```
+
+Notes: taken after the one-time question was answered with Classic, so detection had nothing left to do ("detected: none"). On this PC, Windows 11 Settings shows `00000000` as **Recommended** (confirmed in the Phase 8 check). So on a Windows 11 Classic PC, "Recommended" is plain Balanced, not `961cc777`; row 1's "Recommended" note is about the Windows 10 slider.
+
+### Comparing the two readouts
+
+- Both machines have the same seven PowerSchemes subkeys, including `961cc777` and `3af9b8d9`, and both list only the Balanced plan, with the Balanced personality.
+- With `ded574b5` plugged in and `00000000` on battery (modes both sets share), the documented API, registry and overlay values are identical on both.
+- The only differences are the wording of plan names (Surface: "Balanced (recommended)", "High Performance", "Power Saver"; XPS: "Balanced", "High performance", "Power saver") and the manufacturer. Plan names come from the PC maker's Windows image, and going by manufacturer would be a guess (other Surface models, or other makers, may differ). Neither is a reliable sign of the mode set.
+- **Conclusion (PLAN.md 8c):** nothing the app reads tells the two sets apart without a sighting. Auto keeps the sighting rule (`3af9b8d9` means Classic, `961cc777` means Standard) and the one-time question.
 
 ## Sources
 

@@ -80,7 +80,7 @@ Confirmed 2026-11-25 by reading the registry (`ActiveOverlayAcPowerScheme`) whil
 | Set | Bottom stop (ice cube) | Middle stop (sailboat) | Top stop (rocket) | Seen on |
 |---|---|---|---|---|
 | **Standard** | `961cc777` Best power efficiency | `00000000` Balanced | `ded574b5` Best performance | Development laptop (Dell, Windows 11) |
-| **Classic** | `00000000` Recommended | `3af9b8d9` Better performance | `ded574b5` Best performance | Surface Laptop (Windows 11) |
+| **Classic** | `00000000` Recommended | `3af9b8d9` Better performance | `ded574b5` Best performance | Surface Laptop Go (Windows 11) |
 
 Classic machines do not offer `961cc777` at all. Version 1.1.0 assumed Standard everywhere, so on the Surface: Recommended showed the sailboat, Better performance showed no knob, and the bottom stop set `961cc777`, which Windows accepted but Settings could not display. Phase 8 fixes this. Windows 10 is not a target and is untested.
 
@@ -361,7 +361,8 @@ Replaces the earlier "learn mode" plan. Research and testing showed there are on
 - Detection, beyond the plan's "ignore reads within a few seconds": the mode the app itself last set for each power source is saved (`LastAppModePluggedIn` / `LastAppModeOnBattery`) and never counts as a sighting, so a restart can't make the app fool itself either. If both signs are present, Classic wins (1.1.0 may have left `961cc777` behind on a Classic PC; the app only sets `3af9b8d9` when Classic is already in use).
 - Answering the one-time question sets Standard or Classic explicitly (shown checked in the menu); detection then no longer switches it. Picking Automatic clears the detection and allows the question once more.
 - Widget labels: Standard keeps Battery / Balanced / Performance unchanged. Classic uses Recommended / Better performance / Performance; "Better performance" wraps onto two lines.
-- On the development laptop the PowerSchemes subkeys include both `961cc777` and `3af9b8d9`, so the presence of a subkey does not tell the sets apart there. The Surface readout will show whether anything else does.
+- No set-telling signal (8c): the Surface Laptop Go and the development laptop have the same seven PowerSchemes subkeys (both include `961cc777` and `3af9b8d9`), the same plan and personality, and identical API and registry values for the modes both sets share. Only plan name wording and the manufacturer differ, and neither is reliable. So Auto keeps the sighting rule and the one-time question. Both readouts and the comparison are in `docs/power-mode-guids.md` section 5.
+- Check progress: the Surface checks (steps 2 to 4) passed, and both readouts are in the doc (step 6). Still to do: step 1 on the development laptop, and the restart part of step 5.
 - Testing lesson: since v1.1.0 the installed copy's process is `PowerModeSwitcher-x64`, and `--exit` from any copy closes every copy. Test scripts must find copies by name prefix and must not restore an old settings.json over the user's.
 
 ### Phase 9: ARM64 builds
