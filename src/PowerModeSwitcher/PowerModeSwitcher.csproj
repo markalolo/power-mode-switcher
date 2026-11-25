@@ -14,7 +14,7 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\knob-balanced-sailboat.ico</ApplicationIcon>
     <!-- Release builds from GitHub override this with the tag (v1.2.3 -> 1.2.3). -->
-    <Version>1.0.0</Version>
+    <Version>1.2.0</Version>
     <Product>Power Mode Switcher</Product>
     <Description>Switches the Windows 11 Power Mode with a desktop slider.</Description>
     <!-- WFO0003 asks Windows Forms apps to set DPI awareness in code. This is a WPF app,

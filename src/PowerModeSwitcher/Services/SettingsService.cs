@@ -23,6 +23,27 @@ public sealed class AppSettings
     /// <summary>Draw the whole widget at half size.</summary>
     public bool HalfSize { get; set; }
 
+    /// <summary>Which power mode options to use: Auto (detect, or ask once), Standard or Classic.</summary>
+    public ModeSetChoice ModeSet { get; set; } = ModeSetChoice.Auto;
+
+    /// <summary>The set Auto detected from modes picked outside the app. Null while undecided.</summary>
+    public ModeSetKind? DetectedModeSet { get; set; }
+
+    /// <summary>How an explicit Standard or Classic choice was made (for diagnostics). Null for Auto.</summary>
+    public ModeSetOrigin? ModeSetChosenBy { get; set; }
+
+    /// <summary>True once the one-time "which options does Windows show" question has appeared.</summary>
+    public bool ModeSetQuestionShown { get; set; }
+
+    /// <summary>
+    /// The mode the app itself last set while plugged in, so set detection never mistakes the app's own
+    /// choice for one made in Windows Settings (also after a restart).
+    /// </summary>
+    public Guid? LastAppModePluggedIn { get; set; }
+
+    /// <summary>The same, for on battery.</summary>
+    public Guid? LastAppModeOnBattery { get; set; }
+
     public bool StartWithWindows { get; set; } = true;
 }
 

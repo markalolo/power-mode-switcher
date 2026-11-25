@@ -1,5 +1,7 @@
 using System.ComponentModel;
+using System.IO;
 using System.Runtime.InteropServices;
+using System.Security;
 using Microsoft.Win32;
 using PowerModeSwitcher.Native;
 using Windows.Win32;
@@ -9,25 +11,6 @@ using Windows.Win32.UI.WindowsAndMessaging;
 
 namespace PowerModeSwitcher.Services;
 
-/// <summary>
-/// The known Windows power modes, ordered from most battery saving to most performance
-/// (docs/power-mode-guids.md, section 1), plus Unknown for a GUID we do not recognize.
-/// </summary>
-public enum PowerMode
-{
-    Unknown,
-    BestPowerEfficiency,
-    Balanced,
-
-    /// <summary>
-    /// Windows 10's "Better performance" (3af9b8d9). Windows 11 Settings does not show it, but some
-    /// machines still use it. The three-stop widget has no stop for it, so it is named but not placed.
-    /// </summary>
-    BetterPerformance,
-
-    BestPerformance,
-}
-
 public enum PowerSource
 {
     Unknown,
@@ -36,40 +19,46 @@ public enum PowerSource
 }
 
 /// <summary>
-/// A snapshot of the power state. Error is null when the mode was read successfully.
-/// EnergySaverOn means Windows Energy Saver (called Battery Saver before Windows 11 24H2) is on.
-/// While it is on, Windows runs at best power efficiency, but Mode still shows the mode you chose,
-/// which Windows goes back to when Energy Saver turns off.
+/// A snapshot of the power state.
 /// </summary>
+/// <param name="Mode">The user's chosen power mode for the current power source, or null if it can't be read (see Error).</param>
+/// <param name="PluggedInMode">The mode chosen for when the PC is plugged in.</param>
+/// <param name="OnBatteryMode">The mode chosen for when the PC is on battery.</param>
+/// <param name="Source">Plugged in or on battery.</param>
+/// <param name="EnergySaverOn">
+/// Windows Energy Saver (called Battery Saver before Windows 11 24H2) is on. While it is on, Windows
+/// runs at best power efficiency, but Mode still shows the mode you chose, which Windows goes back to.
+/// </param>
+/// <param name="BalancedPlan">
+/// False when the active power plan is not Balanced or based on it. Windows ignores Power Mode then.
+/// </param>
+/// <param name="Error">Why the mode could not be read, or null.</param>
 public sealed record PowerModeReading(
-    PowerMode Mode,
-    Guid Overlay,
+    Guid? Mode,
+    Guid? PluggedInMode,
+    Guid? OnBatteryMode,
     PowerSource Source,
     bool EnergySaverOn,
+    bool BalancedPlan,
     string? Error);
 
 /// <summary>
 /// Reads and sets the Windows Power Mode, and raises Changed whenever it changes anywhere
-/// (Settings, battery flyout, plugging in, etc.). This is the only place that calls the power APIs.
+/// (Settings, battery flyout, plugging in, etc.). This is the only place that calls the power APIs
+/// (diagnostics readers are in PowerModeService.Details.cs).
 /// <para>
 /// Windows 11 documents PowerGet/SetUserConfiguredAC/DCPowerMode, which are used first. The
 /// undocumented overlay functions (Native/PowerOverlayApi.cs) are the fallback for older Windows,
-/// and the only way to see 3af9b8d9, which the documented API does not support.
+/// and the only way to read or set 3af9b8d9, which the documented API does not support.
 /// </para>
 /// Never use "powercfg /setactive" here: that changes the power plan, which is the wrong layer.
 /// </summary>
-public sealed class PowerModeService : IDisposable
+public sealed partial class PowerModeService : IDisposable
 {
-    // Power mode GUIDs. Source and full list: docs/power-mode-guids.md, section 1.
-    // Windows used to call power modes "overlays", hence the names.
-    public static readonly Guid BestPowerEfficiencyOverlay = PInvoke.GUID_POWER_MODE_BEST_EFFICIENCY;
-    public static readonly Guid BalancedOverlay = PInvoke.GUID_POWER_MODE_NONE;
-    public static readonly Guid BestPerformanceOverlay = PInvoke.GUID_POWER_MODE_BEST_PERFORMANCE;
-
-    /// <summary>"Better performance" (internally "High Performance Overlay"). Not in the documented Windows 11 list.</summary>
-    public static readonly Guid BetterPerformanceOverlay = new("3af9b8d9-7c97-431d-ad78-34a8bfea439f");
-
     private static readonly TimeSpan SafetyPollInterval = TimeSpan.FromSeconds(5);
+
+    /// <summary>Where Windows keeps the chosen power mode per power source (read only).</summary>
+    internal const string PowerSchemesKeyPath = @"SYSTEM\CurrentControlSet\Control\Power\User\PowerSchemes";
 
     // The documented functions list "Windows 11" with no build number. If an early Windows 11 build
     // lacks them, this is set once and the app uses the undocumented functions from then on.
@@ -80,13 +69,20 @@ public sealed class PowerModeService : IDisposable
     // Effective power mode notification. The delegate must stay alive while Windows holds it.
     private EFFECTIVE_POWER_MODE_CALLBACK? _effectiveModeCallback;
     private nint _effectiveModeRegistration;
+    private volatile int _effectivePowerMode = -1; // last EFFECTIVE_POWER_MODE value, for diagnostics
 
-    // Energy Saver notification. Windows is given a pointer to the subscribe parameters, so they live
-    // in unmanaged memory (with the delegate kept alive) until the notification is unregistered.
-    private PDEVICE_NOTIFY_CALLBACK_ROUTINE? _energySaverCallback;
-    private nint _energySaverParameters;
-    private HPOWERNOTIFY _energySaverRegistration;
+    // Power setting notifications (Energy Saver, power plan personality). Windows is given a pointer to
+    // the subscribe parameters, so they live in unmanaged memory (with the delegate kept alive) until
+    // every notification is unregistered.
+    private PDEVICE_NOTIFY_CALLBACK_ROUTINE? _powerSettingCallback;
+    private nint _subscribeParameters;
+    private readonly List<HPOWERNOTIFY> _powerSettingRegistrations = new();
     private volatile int _energySaverStatus; // from GUID_ENERGY_SAVER_STATUS: 0 = off
+
+    // The active plan's personality (GUID_POWERSCHEME_PERSONALITY), written on a Windows thread.
+    private readonly object _planLock = new();
+    private Guid? _planPersonality;
+
     private Timer? _safetyPoll;
     private volatile bool _disposed;
 
@@ -109,12 +105,13 @@ public sealed class PowerModeService : IDisposable
             ?? throw new InvalidOperationException("PowerModeService.Start must be called on the UI thread.");
 
         RegisterEffectivePowerModeNotification();
-        RegisterEnergySaverNotification();
+        RegisterPowerSettingNotifications();
 
         // Plugging in, unplugging, and resume from sleep.
         SystemEvents.PowerModeChanged += OnSystemPowerModeChanged;
 
-        // Safety net in case a notification is missed. Refresh() only raises Changed if something changed.
+        // Safety net in case a notification is missed (and the only way to see a change to the other
+        // power source's mode). Refresh() only raises Changed if something changed.
         _safetyPoll = new Timer(_ => RequestRefresh(), null, SafetyPollInterval, SafetyPollInterval);
     }
 
@@ -130,7 +127,7 @@ public sealed class PowerModeService : IDisposable
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
-    /// <summary>Reads the Power Mode and power source that Windows reports right now.</summary>
+    /// <summary>Reads the Power Mode, both power sources' modes and the power source right now.</summary>
     public PowerModeReading Read()
     {
         (PowerSource source, bool batterySaverFlag) = ReadPowerSource();
@@ -142,30 +139,24 @@ public sealed class PowerModeService : IDisposable
         (Guid? overlay, string? overlayError) = TryGetActualOverlay();
 
         // Documented value first. Only the undocumented one can report 3af9b8d9.
-        Guid? mode = overlay == BetterPerformanceOverlay ? overlay : configured ?? overlay;
+        Guid? mode = overlay == KnownPowerModes.BetterPerformance ? overlay : configured ?? overlay;
 
-        return mode is Guid known
-            ? new PowerModeReading(ModeFromOverlay(known), known, source, energySaverOn, null)
-            : new PowerModeReading(PowerMode.Unknown, Guid.Empty, source, energySaverOn, overlayError);
+        (Guid? pluggedIn, Guid? onBattery) = ReadConfiguredModes();
+
+        return new PowerModeReading(
+            mode, pluggedIn, onBattery, source, energySaverOn, IsBalancedPlan(), mode is null ? overlayError : null);
     }
 
     /// <summary>
     /// Sets the Power Mode for the current power source, then refreshes Current.
     /// Returns true on success; on failure, error holds a short message. Call on the UI thread.
     /// </summary>
-    public bool TrySetMode(PowerMode mode, out string? error)
+    public bool TrySetMode(Guid mode, out string? error)
     {
-        if (mode == PowerMode.Unknown)
-        {
-            error = "Cannot set an unknown power mode.";
-            return false;
-        }
-
-        Guid target = OverlayFromMode(mode);
-
-        // Documented Windows 11 API first. The undocumented function is the fallback: older Windows,
-        // an unknown power source, a mode the documented API does not support, or a failure.
-        WIN32_ERROR? documented = TrySetUserConfiguredMode(target, ReadPowerSource().Source);
+        // Documented Windows 11 API for the three modes it supports. 3af9b8d9 is not one of them, so
+        // it goes straight to the undocumented function, which is also the fallback for older Windows,
+        // an unknown power source, or a failure.
+        WIN32_ERROR? documented = TrySetUserConfiguredMode(mode, ReadPowerSource().Source);
         if (documented == WIN32_ERROR.ERROR_SUCCESS)
         {
             error = null;
@@ -174,7 +165,7 @@ public sealed class PowerModeService : IDisposable
         {
             try
             {
-                var result = (WIN32_ERROR)PowerOverlayApi.PowerSetActiveOverlayScheme(in target);
+                var result = (WIN32_ERROR)PowerOverlayApi.PowerSetActiveOverlayScheme(in mode);
                 error = result == WIN32_ERROR.ERROR_SUCCESS ? null : DescribeError(result);
             }
             catch (EntryPointNotFoundException)
@@ -201,42 +192,10 @@ public sealed class PowerModeService : IDisposable
         UnregisterNotifications();
     }
 
-    public static PowerMode ModeFromOverlay(Guid overlay)
-    {
-        if (overlay == BestPowerEfficiencyOverlay) return PowerMode.BestPowerEfficiency;
-        if (overlay == BalancedOverlay) return PowerMode.Balanced;
-        if (overlay == BetterPerformanceOverlay) return PowerMode.BetterPerformance;
-        if (overlay == BestPerformanceOverlay) return PowerMode.BestPerformance;
-        return PowerMode.Unknown;
-    }
-
-    public static Guid OverlayFromMode(PowerMode mode) => mode switch
-    {
-        PowerMode.BestPowerEfficiency => BestPowerEfficiencyOverlay,
-        PowerMode.Balanced => BalancedOverlay,
-        PowerMode.BetterPerformance => BetterPerformanceOverlay,
-        PowerMode.BestPerformance => BestPerformanceOverlay,
-        _ => throw new ArgumentOutOfRangeException(nameof(mode), mode, "No overlay for this mode."),
-    };
-
-    /// <summary>The wording Windows uses (Windows 11 Settings; Windows 10 for Better performance).</summary>
-    public static string DisplayName(PowerMode mode) => mode switch
-    {
-        PowerMode.BestPowerEfficiency => "Best power efficiency",
-        PowerMode.Balanced => "Balanced",
-        PowerMode.BetterPerformance => "Better performance",
-        PowerMode.BestPerformance => "Best performance",
-        _ => "Unknown",
-    };
-
     // ---- Reading and setting through the documented API, with the undocumented fallback ----
 
     private static bool CanUseDocumentedApi(PowerSource source) =>
         !s_documentedApiMissing && source != PowerSource.Unknown && OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000);
-
-    /// <summary>The documented API supports only the three default Windows 11 modes.</summary>
-    private static bool IsDocumentedMode(Guid mode) =>
-        mode == BestPowerEfficiencyOverlay || mode == BalancedOverlay || mode == BestPerformanceOverlay;
 
     /// <summary>
     /// The user's chosen mode for the given power source, from the documented Windows 11 API.
@@ -266,7 +225,7 @@ public sealed class PowerModeService : IDisposable
     /// </summary>
     private static WIN32_ERROR? TrySetUserConfiguredMode(Guid mode, PowerSource source)
     {
-        if (!CanUseDocumentedApi(source) || !IsDocumentedMode(mode)) return null;
+        if (!CanUseDocumentedApi(source) || !KnownPowerModes.IsDocumented(mode)) return null;
         try
         {
             uint result = source == PowerSource.PluggedIn
@@ -295,6 +254,46 @@ public sealed class PowerModeService : IDisposable
         }
     }
 
+    /// <summary>
+    /// The mode chosen for each power source. The registry values Windows Settings writes come first,
+    /// because they also show 3af9b8d9; the documented API is the fallback.
+    /// </summary>
+    private static (Guid? PluggedIn, Guid? OnBattery) ReadConfiguredModes()
+    {
+        (Guid? pluggedIn, Guid? onBattery) = ReadOverlayRegistry();
+        pluggedIn ??= TryGetUserConfiguredMode(PowerSource.PluggedIn);
+        onBattery ??= TryGetUserConfiguredMode(PowerSource.OnBattery);
+        return (pluggedIn, onBattery);
+    }
+
+    /// <summary>
+    /// ActiveOverlayAcPowerScheme / ActiveOverlayDcPowerScheme from the registry. Reading them needs no
+    /// administrator rights; the app never writes them.
+    /// </summary>
+    private static (Guid? PluggedIn, Guid? OnBattery) ReadOverlayRegistry()
+    {
+        try
+        {
+            using RegistryKey? key = Registry.LocalMachine.OpenSubKey(PowerSchemesKeyPath);
+            return (ParseGuid(key?.GetValue("ActiveOverlayAcPowerScheme")), ParseGuid(key?.GetValue("ActiveOverlayDcPowerScheme")));
+        }
+        catch (Exception ex) when (ex is SecurityException or UnauthorizedAccessException or IOException)
+        {
+            return (null, null);
+        }
+    }
+
+    private static Guid? ParseGuid(object? value) => value is string text && Guid.TryParse(text, out Guid guid) ? guid : null;
+
+    private bool IsBalancedPlan()
+    {
+        lock (_planLock)
+        {
+            // Unknown until Windows reports it: assume Balanced rather than warn for no reason.
+            return _planPersonality is not Guid personality || personality == PInvoke.GUID_TYPICAL_POWER_SAVINGS;
+        }
+    }
+
     private void OnSystemPowerModeChanged(object? sender, PowerModeChangedEventArgs e)
     {
         if (e.Mode is PowerModes.StatusChange or PowerModes.Resume) RequestRefresh();
@@ -304,7 +303,7 @@ public sealed class PowerModeService : IDisposable
 
     /// <summary>
     /// Documented API (Windows 10 1809+). Windows calls back when the effective power mode changes.
-    /// It is only a trigger: the slider always re-reads the actual overlay.
+    /// It is a trigger to re-read (and the value is kept for diagnostics).
     /// If registration fails, the 5-second safety poll still keeps the widget in sync.
     /// </summary>
     private unsafe void RegisterEffectivePowerModeNotification()
@@ -319,28 +318,36 @@ public sealed class PowerModeService : IDisposable
     }
 
     /// <summary>
-    /// Documented API (Windows 11 24H2+). Energy Saver can be on even when plugged in, and the older
-    /// Battery Saver flag does not report it. Windows sends the current value right away, then again
-    /// on every change. On older Windows this fails and the Battery Saver flag is used instead.
+    /// Documented power setting notifications. Windows sends each current value right away, then again on
+    /// every change.
+    /// <list type="bullet">
+    /// <item>GUID_ENERGY_SAVER_STATUS (Windows 11 24H2+): Energy Saver can be on even when plugged in, and
+    /// the older Battery Saver flag does not report it. On older Windows the flag is used instead.</item>
+    /// <item>GUID_POWERSCHEME_PERSONALITY: which kind of plan is active. Power Mode only works on
+    /// Balanced or a plan based on it; PC maker plan GUIDs differ per install, but their personality does not.</item>
+    /// </list>
     /// </summary>
-    private unsafe void RegisterEnergySaverNotification()
+    private unsafe void RegisterPowerSettingNotifications()
     {
-        _energySaverCallback = OnPowerSettingChanged;
+        _powerSettingCallback = OnPowerSettingChanged;
         try
         {
-            var parameters = new DEVICE_NOTIFY_SUBSCRIBE_PARAMETERS { Callback = _energySaverCallback };
-            _energySaverParameters = Marshal.AllocHGlobal(Marshal.SizeOf<DEVICE_NOTIFY_SUBSCRIBE_PARAMETERS>());
-            Marshal.StructureToPtr(parameters, _energySaverParameters, fDeleteOld: false);
+            var parameters = new DEVICE_NOTIFY_SUBSCRIBE_PARAMETERS { Callback = _powerSettingCallback };
+            _subscribeParameters = Marshal.AllocHGlobal(Marshal.SizeOf<DEVICE_NOTIFY_SUBSCRIBE_PARAMETERS>());
+            Marshal.StructureToPtr(parameters, _subscribeParameters, fDeleteOld: false);
 
-            Guid setting = PInvoke.GUID_ENERGY_SAVER_STATUS;
-            void* registration;
-            WIN32_ERROR result = PInvoke.PowerSettingRegisterNotification(
-                &setting, REGISTER_NOTIFICATION_FLAGS.DEVICE_NOTIFY_CALLBACK, new HANDLE((void*)_energySaverParameters), &registration);
-            if (result == WIN32_ERROR.ERROR_SUCCESS) _energySaverRegistration = new HPOWERNOTIFY((nint)registration);
+            foreach (Guid settingGuid in new[] { PInvoke.GUID_ENERGY_SAVER_STATUS, PInvoke.GUID_POWERSCHEME_PERSONALITY })
+            {
+                Guid setting = settingGuid;
+                void* registration;
+                WIN32_ERROR result = PInvoke.PowerSettingRegisterNotification(
+                    &setting, REGISTER_NOTIFICATION_FLAGS.DEVICE_NOTIFY_CALLBACK, new HANDLE((void*)_subscribeParameters), &registration);
+                if (result == WIN32_ERROR.ERROR_SUCCESS) _powerSettingRegistrations.Add(new HPOWERNOTIFY((nint)registration));
+            }
         }
         catch (EntryPointNotFoundException)
         {
-            // Windows without Energy Saver: the Battery Saver flag is used instead.
+            // Very old Windows: no notifications; the safety poll and Battery Saver flag still work.
         }
     }
 
@@ -355,33 +362,49 @@ public sealed class PowerModeService : IDisposable
         GC.KeepAlive(_effectiveModeCallback);
         _effectiveModeCallback = null;
 
-        if (!_energySaverRegistration.IsNull)
+        foreach (HPOWERNOTIFY registration in _powerSettingRegistrations)
         {
-            PInvoke.PowerSettingUnregisterNotification(_energySaverRegistration);
-            _energySaverRegistration = default;
+            PInvoke.PowerSettingUnregisterNotification(registration);
         }
-        if (_energySaverParameters != 0)
+        _powerSettingRegistrations.Clear();
+        if (_subscribeParameters != 0)
         {
-            Marshal.FreeHGlobal(_energySaverParameters);
-            _energySaverParameters = 0;
+            Marshal.FreeHGlobal(_subscribeParameters);
+            _subscribeParameters = 0;
         }
-        GC.KeepAlive(_energySaverCallback);
-        _energySaverCallback = null;
+        GC.KeepAlive(_powerSettingCallback);
+        _powerSettingCallback = null;
     }
 
     // Called by Windows on its own thread.
-    private unsafe void OnEffectivePowerModeChanged(EFFECTIVE_POWER_MODE mode, void* context) => RequestRefresh();
+    private unsafe void OnEffectivePowerModeChanged(EFFECTIVE_POWER_MODE mode, void* context)
+    {
+        _effectivePowerMode = (int)mode;
+        RequestRefresh();
+    }
 
-    // Called by Windows on its own thread with a POWERBROADCAST_SETTING for GUID_ENERGY_SAVER_STATUS.
+    // Called by Windows on its own thread with a POWERBROADCAST_SETTING.
     private unsafe uint OnPowerSettingChanged(void* context, uint type, void* setting)
     {
         if (type != PInvoke.PBT_POWERSETTINGCHANGE || setting is null) return 0;
 
         var broadcast = (POWERBROADCAST_SETTING*)setting;
-        if (broadcast->PowerSetting != PInvoke.GUID_ENERGY_SAVER_STATUS || broadcast->DataLength < sizeof(uint)) return 0;
+        if (broadcast->PowerSetting == PInvoke.GUID_ENERGY_SAVER_STATUS && broadcast->DataLength >= sizeof(uint))
+        {
+            // A DWORD: 0 = Energy Saver off, otherwise on.
+            _energySaverStatus = (int)*(uint*)&broadcast->Data;
+        }
+        else if (broadcast->PowerSetting == PInvoke.GUID_POWERSCHEME_PERSONALITY && broadcast->DataLength >= sizeof(Guid))
+        {
+            // A GUID: the personality of the active plan (Balanced, High performance or Power saver).
+            Guid personality = *(Guid*)&broadcast->Data;
+            lock (_planLock) _planPersonality = personality;
+        }
+        else
+        {
+            return 0;
+        }
 
-        // The data is a DWORD: 0 = Energy Saver off, otherwise on.
-        _energySaverStatus = (int)*(uint*)&broadcast->Data;
         RequestRefresh();
         return 0;
     }

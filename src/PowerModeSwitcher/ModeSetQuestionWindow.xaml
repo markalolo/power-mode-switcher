@@ -1,0 +1,92 @@
+<Window x:Class="PowerModeSwitcher.ModeSetQuestionWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Power Mode Switcher"
+        Width="460"
+        SizeToContent="Height"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterScreen"
+        UseLayoutRounding="True"
+        FontFamily="Inter, Segoe UI"
+        FontSize="14"
+        Background="{DynamicResource WindowBrush}"
+        Foreground="{DynamicResource TextBrush}">
+
+    <!-- The one-time "which power modes does Windows show" question (PLAN.md Phase 8c).
+         Colors are set from code to match the Windows light or dark mode, like the menu. -->
+    <Window.Resources>
+        <SolidColorBrush x:Key="WindowBrush" Color="#F9F9F9" />
+        <SolidColorBrush x:Key="TextBrush" Color="#1B1B1B" />
+        <SolidColorBrush x:Key="SubtleTextBrush" Color="#5F5F5F" />
+        <SolidColorBrush x:Key="ButtonBrush" Color="#FFFFFF" />
+        <SolidColorBrush x:Key="ButtonHoverBrush" Color="#F0F0F0" />
+        <SolidColorBrush x:Key="ButtonBorderBrush" Color="#D4D4D4" />
+        <SolidColorBrush x:Key="AccentBrush" Color="#0F5C8C" />
+
+        <Style x:Key="ChoiceButton" TargetType="Button">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Chrome"
+                                Background="{DynamicResource ButtonBrush}"
+                                BorderBrush="{DynamicResource ButtonBorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                Padding="16,12">
+                            <ContentPresenter HorizontalAlignment="Left" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource ButtonHoverBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                                <Setter TargetName="Chrome" Property="BorderThickness" Value="2" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="LinkButton" TargetType="Button">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <TextBlock x:Name="Text" Text="{TemplateBinding Content}" TextDecorations="Underline" />
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Text" Property="FontWeight" Value="SemiBold" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <StackPanel Margin="24">
+        <TextBlock Text="Which power modes does Windows show on this PC?"
+                   FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" />
+        <TextBlock Margin="0,8,0,0" TextWrapping="Wrap" Foreground="{DynamicResource SubtleTextBrush}">
+            Windows offers one of two sets of power modes, depending on the PC. Look in
+            Settings &gt; System &gt; Power &amp; battery under Power mode, then pick the set you see.
+        </TextBlock>
+
+        <Button x:Name="StandardButton" Style="{StaticResource ChoiceButton}" Margin="0,18,0,0" Click="StandardButton_Click">
+            <TextBlock x:Name="StandardText" FontWeight="SemiBold" TextWrapping="Wrap" />
+        </Button>
+        <Button x:Name="ClassicButton" Style="{StaticResource ChoiceButton}" Margin="0,10,0,0" Click="ClassicButton_Click">
+            <TextBlock x:Name="ClassicText" FontWeight="SemiBold" TextWrapping="Wrap" />
+        </Button>
+
+        <Button Style="{StaticResource LinkButton}" Margin="0,18,0,0" HorizontalAlignment="Left"
+                Content="Open power settings" Click="OpenSettings_Click" />
+        <TextBlock Margin="0,12,0,0" FontSize="12" TextWrapping="Wrap" Foreground="{DynamicResource SubtleTextBrush}"
+                   Text="You can change this later: right-click the widget, then Power mode options." />
+    </StackPanel>
+</Window>

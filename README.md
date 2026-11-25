@@ -1,12 +1,12 @@
 # Power Mode Switcher
 
-A small desktop widget for Windows 11 that switches **Power Mode** with a slider:
+A small desktop widget for Windows 11 that switches **Power Mode** with a slider. Windows offers one of two sets of three power modes, depending on the PC, and the widget matches whichever yours shows:
 
-| Knob | Mode | Same as Windows Settings |
+| Knob | Most PCs (Standard) | Some PCs, such as Surface (Classic) |
 |---|---|---|
-| Rocket (top) | Performance | Best performance |
-| Sailboat (middle) | Balanced | Balanced |
-| Ice cube (bottom) | Battery | Best power efficiency |
+| Rocket (top) | Best performance | Best performance |
+| Sailboat (middle) | Balanced | Better performance |
+| Ice cube (bottom) | Best power efficiency | Recommended |
 
 It sits on your desktop behind your other windows, starts with Windows, and stays in sync when the mode is changed anywhere else (Settings, the battery flyout, plugging in or unplugging).
 
@@ -48,12 +48,14 @@ Both use about the same memory while running. To check that your PC is Intel or 
 - Double-click it to show or hide the widget. Right-click it for the menu.
 
 **The menu** (same from the tray icon or the widget)
-- **Best power efficiency / Balanced / Best performance**: switch mode.
+- **The three power modes** (for example Best power efficiency / Balanced / Best performance): switch mode.
+- **Power mode options**: which set of modes your PC's Windows Settings shows. **Automatic** (the default) works it out once you pick a mode in Windows Settings; if it can't tell yet, the app asks you once. You can also pick **Standard** or **Classic** yourself.
 - **Hide widget / Show widget**: the app keeps running in the tray while the widget is hidden.
 - **Lock widget position**: stops accidental dragging.
 - **Show mode names**: turn off to show just the track.
 - **Half-size widget**: makes the widget half as big.
 - **Start with Windows**: on by default.
+- **Copy diagnostics**: copies details about your PC's power settings (no personal information) for reporting a problem.
 - **Exit**.
 
 The menu follows your Windows light or dark mode.
@@ -64,10 +66,12 @@ The menu follows your Windows light or dark mode.
 - Windows keeps a separate Power Mode for **plugged in** and **on battery**, so the slider can jump when you plug in or unplug. That's Windows switching, and the widget just follows.
 - **Energy Saver** (Quick Settings, Win+A) makes Windows save as much power as it can, whatever mode you picked. While it's on, the line under the widget says "Energy Saver on" and the slider stays on your chosen mode, which comes back when Energy Saver is turned off.
 - **PC maker apps** can change the power mode too (for example Dell Optimizer's sync setting, Lenovo's auto mode, or G-Helper on ASUS). The widget follows those changes. HP and Acer modes run alongside Windows Power Mode without changing it.
-- Some PCs, mostly ones set up with Windows 10, use a fourth mode, **Better performance**, which Windows 11 Settings doesn't show. The widget has no stop for it yet, so the knob disappears and the line under the widget says "Better performance". Picking any stop switches to that mode as usual.
+- **Two sets of power modes.** Most PCs show Best power efficiency, Balanced and Best performance. Some, such as Surface laptops, show Recommended, Better performance and Best performance instead. If the widget ever shows labels that don't match Windows Settings, choose the right set under **Power mode options** in the menu.
+- If Windows is using a mode the current set doesn't include, the knob disappears and the line under the widget names the mode. Picking any stop switches as usual.
+- **"Power mode needs the Balanced power plan"** means Windows is on another power plan (for example High performance), where it ignores Power Mode. Switch back to Balanced in Control Panel > Power Options.
 - Running the .exe a second time doesn't open a second copy. It brings back the widget of the copy that's already running.
 - Settings are saved in `%APPDATA%\PowerModeSwitcher\settings.json`. The app sends nothing over the network.
-- On Windows 11 the app reads and sets Power Mode with Microsoft's documented functions. As a fallback (older Windows, or the Better performance mode) it uses two older Windows functions that Microsoft hasn't documented. They're widely used and have been stable for years, but a future Windows update could change them.
+- On Windows 11 the app reads and sets Power Mode with Microsoft's documented functions. For Better performance, and as a fallback on older Windows, it uses two older Windows functions that Microsoft hasn't documented. They're widely used and have been stable for years, but a future Windows update could change them.
 
 ## Uninstall
 
@@ -80,7 +84,8 @@ The menu follows your Windows light or dark mode.
 - Built with C#, WPF and .NET 10 (`net10.0-windows`, x64). The only NuGet package is [CsWin32](https://github.com/microsoft/CsWin32), which generates the Windows API declarations at build time (nothing extra ships with the app). Settings use System.Text.Json source generation.
 - Build: `dotnet build`
 - Run: `dotnet run --project src/PowerModeSwitcher`
-- Stop a running copy cleanly: `PowerModeSwitcher.exe --exit`
+- Stop a running copy cleanly: `PowerModeSwitcher.exe --exit` (this closes whichever copy is running, whatever its file name).
+- Write the diagnostics report to a file: `PowerModeSwitcher.exe --diagnostics [file]` (read only; safe alongside a running copy).
 - Publish the small .exe: `dotnet publish src/PowerModeSwitcher -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o publish`
 - Publish the standalone .exe: `dotnet publish src/PowerModeSwitcher -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o publish-standalone` (not compressed on purpose: compression would halve the file but add about 75 MB of memory use; trimming is not supported for WPF).
 - Release: push a tag like `v1.0.0`. GitHub Actions builds the .exe and attaches it to a new release (`.github/workflows/release.yml`).

@@ -16,7 +16,7 @@ These are all the power mode GUIDs found anywhere. Order is from most battery sa
 |---|---|---|---|---|---|
 | 1 | `961cc777-2547-4f9d-8174-7d86181b8a7a` | Best power efficiency | Better battery (shown as **Recommended** on some devices, including Surface) | Better Battery-life Overlay | Documented as `GUID_POWER_MODE_BEST_EFFICIENCY`. |
 | 2 | `00000000-0000-0000-0000-000000000000` | Balanced | (see note) | No overlay | Documented as `GUID_POWER_MODE_NONE`. Means "use the Balanced plan as is". Many Windows 10 scripts call this position "Better performance". |
-| 3 | `3af9b8d9-7c97-431d-ad78-34a8bfea439f` | Not shown in Windows 11 Settings | Better performance (the Windows 10 default) | High Performance Overlay | Microsoft's OEM docs list it as the "Better Performance" slider mode. Still turns up on Windows 11 machines that were set up or upgraded with it. Not in the documented Windows 11 list. |
+| 3 | `3af9b8d9-7c97-431d-ad78-34a8bfea439f` | Better Performance, **on Classic PCs only** (see PLAN.md section 3, "Mode sets"; seen on a Surface Laptop 2026-11-25). Not offered on Standard PCs. | Better performance (the Windows 10 default) | High Performance Overlay | Microsoft's OEM docs list it as the "Better Performance" slider mode. Not in the documented Windows 11 list. |
 | 4 | `ded574b5-45a0-4f42-8737-46345c09c238` | Best performance | Best performance | Max Performance Overlay | Documented as `GUID_POWER_MODE_BEST_PERFORMANCE`. |
 
 **Order 2 vs 3 is an inference.** Microsoft never ranks them against each other. The internal name "High Performance Overlay" for `3af9b8d9`, and Windows 10 placing "Better performance" just below "Best performance", both put it above plain Balanced.
@@ -27,7 +27,7 @@ These are all the power mode GUIDs found anywhere. Order is from most battery sa
 
 `PowerModeService.cs` treats `3af9b8d9` as a "legacy better battery" overlay and shows it at the **bottom** (best power efficiency). Microsoft's OEM documentation says it is **"Better performance"**, a middle-to-high setting. A machine using it would show the knob on the ice cube while actually running in a performance-leaning mode. This may be part of what looked wrong on the Surface.
 
-**Status: fixed 2026-11-24.** The app now names `3af9b8d9` "Better performance". The three-stop widget has no stop for it, so the knob hides and the status line and tooltip name it until Phase 8 can give it a stop.
+**Status: fixed 2026-11-24, then extended in Phase 8 (2026-11-25).** On 2026-11-24 the app started naming `3af9b8d9` "Better performance" instead of putting it on the bottom stop. Phase 8 added the two mode sets: on Classic PCs (Recommended / Better performance / Best performance) it is the middle stop with the sailboat, and on Standard PCs, which don't offer it, the widget shows its neutral state and names it.
 
 ## 2. How PC makers label the same modes
 
@@ -94,6 +94,52 @@ Fix: declare it as `in Guid` or `ref Guid` (pointer). The `Get` functions with `
 - Active power plan GUID and name. Warn if it is not Balanced, because Power Mode only applies on Balanced-derived plans.
 - Plugged-in and on-battery user modes (from 4a), not just the current one.
 - Effective power mode (the `EFFECTIVE_POWER_MODE` value from the existing notification), which shows when Energy Saver, Battery Saver or Game Mode is overriding the user's choice.
+
+## 5. Reference readouts (Copy diagnostics)
+
+Output of the app's Copy diagnostics on real machines, for comparing the two mode sets. User names, machine names and serial numbers are never included.
+
+### Standard: Dell XPS 16 9640 (development laptop), 2026-11-25
+
+```
+App:      version 1.0.0, X64 process   (local development build)
+Windows:  Windows 11 Pro, version 25H2 (build 26200.9448), X64
+Device:   Dell Inc. XPS 16 9640
+
+Power source:   plugged in
+Energy Saver:   off
+Mode set:       Standard (Best power efficiency / Balanced / Best performance), not decided yet, so using Standard
+Widget shows:   Best performance (top stop)
+
+Chosen power mode, plugged in:
+  documented API: ded574b5-45a0-4f42-8737-46345c09c238 (Max Performance Overlay)
+  registry:       ded574b5-45a0-4f42-8737-46345c09c238 (Max Performance Overlay)
+Chosen power mode, on battery:
+  documented API: 00000000-0000-0000-0000-000000000000 (No overlay)
+  registry:       00000000-0000-0000-0000-000000000000 (No overlay)
+Actual overlay:     ded574b5-45a0-4f42-8737-46345c09c238 (Max Performance Overlay)
+Effective overlay:  ded574b5-45a0-4f42-8737-46345c09c238 (Max Performance Overlay)
+Effective power mode: 4 (Max Performance)
+
+Active power plan:  381b4222-f694-41f0-9685-ff5bb260df2e Balanced
+Plan personality:   381b4222-f694-41f0-9685-ff5bb260df2e (Balanced)
+All power plans:
+  381b4222-f694-41f0-9685-ff5bb260df2e Balanced
+Subkeys under HKLM\SYSTEM\CurrentControlSet\Control\Power\User\PowerSchemes:
+  381b4222-f694-41f0-9685-ff5bb260df2e Balanced
+  3af9b8d9-7c97-431d-ad78-34a8bfea439f High Performance Overlay
+  8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c High performance
+  961cc777-2547-4f9d-8174-7d86181b8a7a Better Battery-life Overlay
+  a1841308-3541-4fab-bc81-f71556f20b4a Power saver
+  ded574b5-45a0-4f42-8737-46345c09c238 Max Performance Overlay
+  e9a42b02-d5df-448d-aa00-03f14749eb61 Ultimate Performance
+```
+
+Notes: only Balanced is listed as a plan (Modern Standby hides the others, though their subkeys exist). The `3af9b8d9` subkey exists even on this Standard machine, so the presence of a subkey is not a signal for the mode set here.
+
+### Classic: Surface Laptop
+
+To be added from the Surface's Copy diagnostics (PLAN.md Phase 8 check, step 6).
 
 ## Sources
 

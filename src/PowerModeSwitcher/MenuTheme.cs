@@ -65,6 +65,13 @@ public sealed class ThemedMenuRenderer : Forms.ToolStripProfessionalRenderer
         base.OnRenderItemText(e);
     }
 
+    // The submenu arrow ("Power mode options") in the text color, so it shows in dark mode too.
+    protected override void OnRenderArrow(Forms.ToolStripArrowRenderEventArgs e)
+    {
+        e.ArrowColor = e.Item?.Enabled == false ? Palette.DisabledText : Palette.Text;
+        base.OnRenderArrow(e);
+    }
+
     protected override void OnRenderMenuItemBackground(Forms.ToolStripItemRenderEventArgs e)
     {
         if (!e.Item.Selected || !e.Item.Enabled) return;

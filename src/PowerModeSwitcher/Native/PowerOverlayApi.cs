@@ -42,4 +42,12 @@ internal static partial class PowerOverlayApi
     [LibraryImport(PowrProf)]
     [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
     internal static partial uint PowerGetActualOverlayScheme(out Guid actualOverlayGuid);
+
+    /// <summary>
+    /// Reads the overlay scheme Windows is actually applying, which differs from the chosen one while
+    /// Energy Saver (or another system signal) overrides it. Used only for Copy diagnostics.
+    /// </summary>
+    [LibraryImport(PowrProf)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    internal static partial uint PowerGetEffectiveOverlayScheme(out Guid effectiveOverlayGuid);
 }

@@ -29,6 +29,8 @@
         <Style x:Key="ModeLabelText" TargetType="TextBlock">
             <Setter Property="VerticalAlignment" Value="Center" />
             <Setter Property="Foreground" Value="White" />
+            <!-- Long labels (Classic's "Better performance") wrap onto a second line. -->
+            <Setter Property="TextWrapping" Value="Wrap" />
         </Style>
     </Window.Resources>
 
@@ -90,14 +92,15 @@
 
                 <!-- Mode names, each centered on its stop. Can be turned off from the tray. -->
                 <StackPanel x:Name="LabelsPanel" Grid.Column="2">
-                    <Border Style="{StaticResource ModeLabel}" Tag="BestPerformance">
-                        <TextBlock x:Name="PerformanceText" Style="{StaticResource ModeLabelText}" Text="Performance" />
+                    <!-- The text comes from the current mode set (WidgetWindow.ApplyModeSetLabels). -->
+                    <Border Style="{StaticResource ModeLabel}" Tag="Top">
+                        <TextBlock x:Name="TopLabelText" Style="{StaticResource ModeLabelText}" Text="Performance" />
                     </Border>
-                    <Border Style="{StaticResource ModeLabel}" Tag="Balanced">
-                        <TextBlock x:Name="BalancedText" Style="{StaticResource ModeLabelText}" Text="Balanced" />
+                    <Border Style="{StaticResource ModeLabel}" Tag="Middle">
+                        <TextBlock x:Name="MiddleLabelText" Style="{StaticResource ModeLabelText}" Text="Balanced" />
                     </Border>
-                    <Border Style="{StaticResource ModeLabel}" Tag="BestPowerEfficiency">
-                        <TextBlock x:Name="BatteryText" Style="{StaticResource ModeLabelText}" Text="Battery" />
+                    <Border Style="{StaticResource ModeLabel}" Tag="Bottom">
+                        <TextBlock x:Name="BottomLabelText" Style="{StaticResource ModeLabelText}" Text="Battery" />
                     </Border>
                 </StackPanel>
             </Grid>

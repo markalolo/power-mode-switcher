@@ -11,8 +11,9 @@ using PowerModeSwitcher.Services;
 namespace PowerModeSwitcher;
 
 /// <summary>
-/// The floating widget: a vertical track with a round knob that slides between
-/// Performance (top), Balanced (middle) and Battery (bottom).
+/// The floating widget: a vertical track with a round knob that slides between three stops.
+/// Which power mode each stop sets, and its label, come from the current mode set
+/// (Standard: Battery / Balanced / Performance; Classic: Recommended / Better performance / Performance).
 /// </summary>
 public partial class WidgetWindow : Window
 {
@@ -39,6 +40,7 @@ public partial class WidgetWindow : Window
     private static readonly Brush ErrorTipBorder = Frozen(new SolidColorBrush(Color.FromArgb(0x40, 0xFF, 0xFF, 0xFF)));
 
     private readonly PowerModeService _powerMode;
+    private readonly ModeSetService _modeSets;
     private readonly SettingsService _settings;
     private IntPtr _hwnd;
 
@@ -58,18 +60,21 @@ public partial class WidgetWindow : Window
     private ToolTip? _errorTip;
     private int _errorTipToken;
 
-    public WidgetWindow(PowerModeService powerMode, SettingsService settings)
+    public WidgetWindow(PowerModeService powerMode, ModeSetService modeSets, SettingsService settings)
     {
         InitializeComponent();
 
         _powerMode = powerMode;
+        _modeSets = modeSets;
         _settings = settings;
 
         _powerMode.Changed += PowerMode_Changed;
+        _modeSets.Changed += ModeSets_Changed;
         SystemEvents.DisplaySettingsChanged += DisplaySettingsChanged;
         Closed += (_, _) =>
         {
             _powerMode.Changed -= PowerMode_Changed;
+            _modeSets.Changed -= ModeSets_Changed;
             SystemEvents.DisplaySettingsChanged -= DisplaySettingsChanged;
 
             // "Hide widget" only hides. If the window is actually closed (Exit, or Windows asking
@@ -77,6 +82,7 @@ public partial class WidgetWindow : Window
             Application.Current.Shutdown();
         };
 
+        ApplyModeSetLabels();
         ShowReading(_powerMode.Current, animate: false);
         ApplyLayout(keepNearestCorner: false);
     }
@@ -134,6 +140,22 @@ public partial class WidgetWindow : Window
 
     private void PowerMode_Changed(object? sender, EventArgs e) => ShowReading(_powerMode.Current, animate: true);
 
+    private void ModeSets_Changed(object? sender, EventArgs e)
+    {
+        ApplyModeSetLabels();
+        ShowReading(_powerMode.Current, animate: true);
+        FitWindowToContent(); // a label may now wrap onto two lines
+    }
+
+    /// <summary>Puts the current set's short labels next to the stops.</summary>
+    private void ApplyModeSetLabels()
+    {
+        ModeSet set = _modeSets.Current;
+        TopLabelText.Text = set[Stop.Top].WidgetLabel;
+        MiddleLabelText.Text = set[Stop.Middle].WidgetLabel;
+        BottomLabelText.Text = set[Stop.Bottom].WidgetLabel;
+    }
+
     // ---- Layout: mode names on/off, full or half size ----
 
     private void ApplyLayout(bool keepNearestCorner)
@@ -184,7 +206,7 @@ public partial class WidgetWindow : Window
 
     private void ShowReading(PowerModeReading reading, bool animate)
     {
-        string status = DescribeStatus(reading);
+        string status = DescribeStatus(reading, _modeSets.Current);
         if (StatusText.Text != status)
         {
             StatusText.Text = status;
@@ -194,32 +216,36 @@ public partial class WidgetWindow : Window
         // While the knob is being dragged, leave it under the mouse.
         if (_dragging) return;
 
-        ShowMode(reading.Error is null ? reading.Mode : PowerMode.Unknown, animate);
+        ShowStop(StopFor(reading), animate);
     }
 
-    private void ShowMode(PowerMode mode, bool animate)
-    {
-        HighlightLabel(mode);
+    /// <summary>The stop for the current mode in the current set, or null for the neutral state.</summary>
+    private Stop? StopFor(PowerModeReading reading) =>
+        reading.Error is null && reading.Mode is Guid mode ? _modeSets.Current.StopOf(mode) : null;
 
-        if (!HasStop(mode))
+    private void ShowStop(Stop? stop, bool animate)
+    {
+        HighlightLabel(stop);
+
+        if (stop is not Stop known)
         {
-            // Neutral state: no knob, no highlighted label (the status line names the mode).
-            // Clicking a stop still works.
+            // Neutral state (a mode the current set has no stop for, or unreadable): no knob and no
+            // highlighted label; the status line names the mode. Clicking a stop still works.
             Knob.Visibility = Visibility.Hidden;
             return;
         }
 
         bool wasHidden = Knob.Visibility != Visibility.Visible;
         Knob.Visibility = Visibility.Visible;
-        Knob.Source = KnobImageFor(mode);
-        MoveKnob(StopFor(mode) - KnobSize / 2, animate && !wasHidden);
+        Knob.Source = KnobImageFor(known);
+        MoveKnob(StopCenter(known) - KnobSize / 2, animate && !wasHidden);
     }
 
-    private void HighlightLabel(PowerMode mode)
+    private void HighlightLabel(Stop? stop)
     {
-        StyleLabel(PerformanceText, mode == PowerMode.BestPerformance);
-        StyleLabel(BalancedText, mode == PowerMode.Balanced);
-        StyleLabel(BatteryText, mode == PowerMode.BestPowerEfficiency);
+        StyleLabel(TopLabelText, stop == Stop.Top);
+        StyleLabel(MiddleLabelText, stop == Stop.Middle);
+        StyleLabel(BottomLabelText, stop == Stop.Bottom);
     }
 
     private static void StyleLabel(TextBlock label, bool active)
@@ -251,9 +277,12 @@ public partial class WidgetWindow : Window
         Canvas.SetTop(Knob, top);
     }
 
-    private static string DescribeStatus(PowerModeReading reading)
+    private static string DescribeStatus(PowerModeReading reading, ModeSet set)
     {
         if (reading.Error is not null) return "Can't read power mode";
+
+        // Windows ignores Power Mode on other plans, so this matters more than anything else here.
+        if (!reading.BalancedPlan) return "Power mode needs the Balanced power plan";
 
         string text = reading.Source switch
         {
@@ -262,32 +291,27 @@ public partial class WidgetWindow : Window
             _ => "Power source unknown",
         };
         if (reading.EnergySaverOn) text += " · Energy Saver on";
-        if (!HasStop(reading.Mode))
+
+        // Neutral state: name the mode (or say it is unknown), since the knob can't show it.
+        if (reading.Mode is not Guid mode || set.StopOf(mode) is null)
         {
-            string name = reading.Mode == PowerMode.Unknown ? "Unknown power mode" : PowerModeService.DisplayName(reading.Mode);
-            text = name + " · " + text;
+            text = set.LabelFor(reading.Mode) + " · " + text;
         }
         return text;
     }
 
-    /// <summary>
-    /// True for modes with a stop on the three-stop widget. Unknown and Better performance (3af9b8d9)
-    /// have none, so the widget shows them without guessing a position.
-    /// </summary>
-    private static bool HasStop(PowerMode mode) =>
-        mode is PowerMode.BestPowerEfficiency or PowerMode.Balanced or PowerMode.BestPerformance;
-
     // ---- Changing the mode ----
 
-    private void SelectMode(PowerMode mode)
+    private void SelectStop(Stop stop)
     {
-        ShowMode(mode, animate: true); // respond right away
+        ShowStop(stop, animate: true); // respond right away
 
+        ModeStop target = _modeSets.Current[stop];
         PowerModeReading current = _powerMode.Current;
-        bool alreadySet = current.Error is null && current.Mode == mode;
-        if (!alreadySet && !_powerMode.TrySetMode(mode, out string? error))
+        bool alreadySet = current.Error is null && current.Mode == target.Mode;
+        if (!alreadySet && !_modeSets.TrySetStop(stop, out string? error))
         {
-            ShowError($"Couldn't switch to {PowerModeService.DisplayName(mode)}.\n{error}");
+            ShowError($"Couldn't switch to {target.Label}.\n{error}");
         }
 
         // Always end up showing what Windows actually reports (snaps back if the change failed).
@@ -347,7 +371,7 @@ public partial class WidgetWindow : Window
         _knobTargetTop = double.NaN;
 
         // Preview the picture and label of the nearest stop while dragging.
-        PowerMode nearest = NearestMode(center);
+        Stop nearest = NearestStop(center);
         Knob.Source = KnobImageFor(nearest);
         HighlightLabel(nearest);
     }
@@ -363,7 +387,7 @@ public partial class WidgetWindow : Window
         Track.ReleaseMouseCapture();
 
         double y = wasDragging ? Canvas.GetTop(Knob) + KnobSize / 2 : e.GetPosition(Track).Y;
-        SelectMode(NearestMode(y));
+        SelectStop(NearestStop(y));
     }
 
     private void Track_LostMouseCapture(object sender, MouseEventArgs e)
@@ -389,7 +413,7 @@ public partial class WidgetWindow : Window
         if (label == _pressedLabel)
         {
             e.Handled = true;
-            SelectMode(Enum.Parse<PowerMode>((string)label.Tag));
+            SelectStop(Enum.Parse<Stop>((string)label.Tag));
         }
         _pressedLabel = null;
     }
@@ -462,22 +486,23 @@ public partial class WidgetWindow : Window
 
     // ---- Helpers ----
 
-    private static double StopFor(PowerMode mode) => mode switch
+    private static double StopCenter(Stop stop) => stop switch
     {
-        PowerMode.BestPerformance => TopStop,
-        PowerMode.BestPowerEfficiency => BottomStop,
+        Stop.Top => TopStop,
+        Stop.Bottom => BottomStop,
         _ => MiddleStop,
     };
 
-    private static PowerMode NearestMode(double y) =>
-        y < (TopStop + MiddleStop) / 2 ? PowerMode.BestPerformance
-        : y < (MiddleStop + BottomStop) / 2 ? PowerMode.Balanced
-        : PowerMode.BestPowerEfficiency;
+    private static Stop NearestStop(double y) =>
+        y < (TopStop + MiddleStop) / 2 ? Stop.Top
+        : y < (MiddleStop + BottomStop) / 2 ? Stop.Middle
+        : Stop.Bottom;
 
-    private ImageSource KnobImageFor(PowerMode mode) => (ImageSource)FindResource(mode switch
+    // The pictures belong to positions, in every set: rocket on top, sailboat in the middle, ice cube at the bottom.
+    private ImageSource KnobImageFor(Stop stop) => (ImageSource)FindResource(stop switch
     {
-        PowerMode.BestPerformance => "KnobPerformance",
-        PowerMode.BestPowerEfficiency => "KnobBattery",
+        Stop.Top => "KnobPerformance",
+        Stop.Bottom => "KnobBattery",
         _ => "KnobBalanced",
     });
 

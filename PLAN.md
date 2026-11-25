@@ -115,7 +115,7 @@ Add a simple poll every 5 seconds as a safety net in case a notification is miss
 
 - Knob centers sit at 50, 150 and 250 px down the track. The knob has a soft drop shadow.
 - When the mode changes, the knob slides to its new spot over about 200 ms with an ease-out curve (no bounce), and its image swaps.
-- Right side: labels "Performance", "Balanced", "Battery", each vertically centered on its stop. The current one is white, 15 px, semibold; the others are white at about 62% opacity, 13 px, medium.
+- Right side: labels "Performance", "Balanced", "Battery", each vertically centered on its stop. The current one is white, 15 px, semibold; the others are white at about 62% opacity, 13 px, medium. From Phase 8 the labels come from the mode set: Standard keeps these three; Classic shows "Performance", "Better performance" (wraps onto two lines) and "Recommended". The menu and tooltip use the full Windows wording.
 - Font: Inter if installed, otherwise Segoe UI.
 - Clicking a stop, a label, or dragging the knob and releasing near a stop all change the mode.
 - Optional small text line under the widget: "On battery" / "Plugged in".
@@ -151,15 +151,17 @@ Approach, in order:
 ## 5. Tray icon
 
 - Icon reflects the current mode: ice cube, sailboat or rocket (see section 4, Images).
-- Tooltip: "Power mode: Balanced (plugged in)".
+- Tooltip: "Power mode: Balanced (plugged in)". A second line says "Power mode needs the Balanced power plan" when it applies.
 - Right-click menu (the same menu also opens when the widget is right-clicked; it follows the Windows light/dark setting):
   - Version header (greyed out)
-  - Best power efficiency / Balanced / Best performance (radio-style, current one checked)
+  - The three modes of the current mode set, bottom stop first (radio-style, current one checked)
+  - Power mode options (submenu, Phase 8): Automatic (shows what it detected), Standard, Classic
   - Show widget / Hide widget
   - Lock widget position
   - Show mode names (checkbox)
   - Half-size widget (checkbox)
   - Start with Windows (checkbox)
+  - Copy diagnostics (Phase 8)
   - Exit
 - Double-click toggles widget visibility.
 
@@ -169,7 +171,8 @@ Approach, in order:
 
 - **Start with Windows** on by default. Writes `PowerModeSwitcher` to `HKCU\...\Run` pointing at the current .exe path. If the .exe is moved, the next launch rewrites the path.
 - **Single instance:** use a named mutex. A second launch just shows the existing widget and exits.
-- `settings.json` fields: `WindowLeft`, `WindowTop`, `PositionLocked`, `WidgetVisible`, `ShowModeNames`, `HalfSize`, `StartWithWindows`.
+- `settings.json` fields: `WindowLeft`, `WindowTop`, `PositionLocked`, `WidgetVisible`, `ShowModeNames`, `HalfSize`, `StartWithWindows`, and from Phase 8 `ModeSet` (Auto/Standard/Classic), `DetectedModeSet`, `ModeSetChosenBy` (Menu/Question), `ModeSetQuestionShown`, `LastAppModePluggedIn`, `LastAppModeOnBattery`. Enums are saved as names.
+- Command line: `--exit` closes a running copy; `--diagnostics [file]` writes the Copy diagnostics report to a file (default `%TEMP%\PowerModeSwitcher-diagnostics.txt`) and quits without touching settings.
 - Should not require administrator rights. Verify in phase 1.
 
 ---
@@ -190,9 +193,14 @@ power-mode-switcher/
     app.manifest                  per-monitor DPI aware, never asks for admin
     App.xaml / App.xaml.cs        startup, single instance, --exit, wiring
     WidgetWindow.xaml / .cs       the floating widget
+    ModeSetQuestionWindow.xaml/.cs  the one-time "which power modes does Windows show" question
     TrayIcon.cs                   tray icon and the shared right-click menu
     MenuTheme.cs                  light/dark menu colors and drawing
-    Services/PowerModeService.cs  power mode, Energy Saver, change events
+    Services/PowerModeService.cs  power mode, both power sources, Energy Saver, plan type, change events
+    Services/PowerModeService.Details.cs  read-only power details for Copy diagnostics
+    Services/ModeSets.cs          the four power mode GUIDs and the Standard and Classic sets
+    Services/ModeSetService.cs    which set is in use (detect, ask, menu); sets modes by stop
+    Services/DiagnosticsService.cs  the Copy diagnostics report
     Services/DesktopZOrder.cs     HWND_BOTTOM / window style helpers
     Services/ScreenPlacement.cs   position, off-screen recovery, resizing
     Services/SettingsService.cs   JSON load/save
@@ -345,6 +353,16 @@ Replaces the earlier "learn mode" plan. Research and testing showed there are on
 4. On the Surface, change the mode in Windows Settings; the widget follows.
 5. Undecided case: on a fresh `settings.json` where only Balanced or Best performance has been used, the one-time question appears once, and the answer sticks after a restart.
 6. Copy diagnostics works on both machines. Add the two outputs, with serial numbers and user names removed, to `docs/power-mode-guids.md` as reference readouts.
+
+**Phase 8 notes (2026-11-25):**
+- Built in the order 8a, 8b, 8c, 8d. Copy diagnostics is also available as `PowerModeSwitcher.exe --diagnostics [file]`, which only reads and can run alongside a running copy. The report never includes user names, machine names or serial numbers (device = BIOS manufacturer and product name only).
+- Plan type: instead of comparing plan GUIDs, the app subscribes to `GUID_POWERSCHEME_PERSONALITY`, so plans derived from Balanced (and PC maker plans) are recognised by their personality. Windows sends it on start and on every plan change; no polling.
+- Both power sources' modes come from the registry values `ActiveOverlayAcPowerScheme` / `ActiveOverlayDcPowerScheme` (they can show `3af9b8d9`), with the documented getters as the fallback. They are re-read with every refresh, so a change to the other power source's mode in Settings is picked up by the 5-second poll.
+- Detection, beyond the plan's "ignore reads within a few seconds": the mode the app itself last set for each power source is saved (`LastAppModePluggedIn` / `LastAppModeOnBattery`) and never counts as a sighting, so a restart can't make the app fool itself either. If both signs are present, Classic wins (1.1.0 may have left `961cc777` behind on a Classic PC; the app only sets `3af9b8d9` when Classic is already in use).
+- Answering the one-time question sets Standard or Classic explicitly (shown checked in the menu); detection then no longer switches it. Picking Automatic clears the detection and allows the question once more.
+- Widget labels: Standard keeps Battery / Balanced / Performance unchanged. Classic uses Recommended / Better performance / Performance; "Better performance" wraps onto two lines.
+- On the development laptop the PowerSchemes subkeys include both `961cc777` and `3af9b8d9`, so the presence of a subkey does not tell the sets apart there. The Surface readout will show whether anything else does.
+- Testing lesson: since v1.1.0 the installed copy's process is `PowerModeSwitcher-x64`, and `--exit` from any copy closes every copy. Test scripts must find copies by name prefix and must not restore an old settings.json over the user's.
 
 ### Phase 9: ARM64 builds
 

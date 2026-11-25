@@ -1,4 +1,5 @@
-﻿using System.Windows;
+using System.IO;
+using System.Windows;
 using PowerModeSwitcher.Services;
 
 namespace PowerModeSwitcher;
@@ -13,6 +14,9 @@ public partial class App : Application
     // "PowerModeSwitcher.exe --exit" asks a running copy to close cleanly (used before rebuilding).
     private const string ExitArgument = "--exit";
 
+    // "PowerModeSwitcher.exe --diagnostics [file]" writes the Copy diagnostics report to a file.
+    private const string DiagnosticsArgument = "--diagnostics";
+
     private Mutex? _instanceMutex;
     private EventWaitHandle? _showWidgetSignal;
     private RegisteredWaitHandle? _showWidgetWait;
@@ -20,13 +24,27 @@ public partial class App : Application
     private RegisteredWaitHandle? _exitWait;
 
     private PowerModeService? _powerMode;
+    private ModeSetService? _modeSets;
     private SettingsService? _settings;
     private WidgetWindow? _widget;
     private TrayIcon? _tray;
+    private ModeSetQuestionWindow? _question;
 
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+
+        // "PowerModeSwitcher.exe --diagnostics [file]": write the Copy diagnostics report to a file and quit.
+        // Read only, so it runs alongside a running copy and changes no settings.
+        int diagnosticsIndex = Array.FindIndex(e.Args, arg => string.Equals(arg, DiagnosticsArgument, StringComparison.OrdinalIgnoreCase));
+        if (diagnosticsIndex >= 0)
+        {
+            string path = diagnosticsIndex + 1 < e.Args.Length
+                ? e.Args[diagnosticsIndex + 1]
+                : Path.Combine(Path.GetTempPath(), "PowerModeSwitcher-diagnostics.txt");
+            WriteDiagnosticsAndExit(path);
+            return;
+        }
 
         bool exitRequested = e.Args.Any(arg => string.Equals(arg, ExitArgument, StringComparison.OrdinalIgnoreCase));
 
@@ -54,15 +72,78 @@ public partial class App : Application
 
         _powerMode = new PowerModeService();
         _powerMode.Start();
+        _modeSets = new ModeSetService(_settings, _powerMode);
 
-        _widget = new WidgetWindow(_powerMode, _settings);
+        _widget = new WidgetWindow(_powerMode, _modeSets, _settings);
         MainWindow = _widget;
         if (_settings.Settings.WidgetVisible) _widget.Show();
 
-        _tray = new TrayIcon(_powerMode, _settings, _widget);
+        _tray = new TrayIcon(_powerMode, _modeSets, _settings, _widget);
 
         // Right-clicking the widget opens the same menu as the tray icon.
         _widget.MenuRequested += (_, _) => _tray.ShowMenuAtCursor();
+
+        // Detect the mode set now that the widget and tray are listening, then ask once if it can't tell.
+        _modeSets.Changed += (_, _) => UpdateModeSetQuestion();
+        _widget.IsVisibleChanged += (_, _) => UpdateModeSetQuestion();
+        _modeSets.Start();
+        UpdateModeSetQuestion();
+    }
+
+    /// <summary>
+    /// Writes the Copy diagnostics report to a file, then quits. Waits a moment first so Windows can
+    /// deliver the power plan and effective mode notifications the report includes.
+    /// </summary>
+    private void WriteDiagnosticsAndExit(string path)
+    {
+        ShutdownMode = ShutdownMode.OnExplicitShutdown;
+
+        var settings = new SettingsService();
+        settings.Load();
+        var power = new PowerModeService();
+        power.Start();
+        var modeSets = new ModeSetService(settings, power); // not started: never saves anything
+
+        var wait = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(1.5) };
+        wait.Tick += (_, _) =>
+        {
+            wait.Stop();
+            power.Refresh();
+            try
+            {
+                File.WriteAllText(path, DiagnosticsService.Build(power, modeSets, settings));
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // Nowhere to report it: there is no window in this mode.
+            }
+            power.Dispose();
+            Shutdown();
+        };
+        wait.Start();
+    }
+
+    /// <summary>
+    /// Shows the one-time "which power modes does Windows show" question while the mode set is
+    /// undecided and the widget is on screen, and closes it if detection decides first.
+    /// </summary>
+    private void UpdateModeSetQuestion()
+    {
+        if (_modeSets is null || _widget is null) return;
+
+        if (_question is not null)
+        {
+            if (!_modeSets.IsUndecided) _question.Close();
+            return;
+        }
+
+        if (!_modeSets.ShouldAskQuestion || !_widget.IsVisible) return;
+
+        _modeSets.MarkQuestionShown(); // once, even if it is closed without an answer
+        _question = new ModeSetQuestionWindow(_modeSets);
+        _question.Closed += (_, _) => _question = null;
+        _question.Show();
+        _question.Activate();
     }
 
     protected override void OnExit(ExitEventArgs e)
