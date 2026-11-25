@@ -87,6 +87,8 @@ Suggested approach (Phase 6):
 
 Fix: declare it as `in Guid` or `ref Guid` (pointer). The `Get` functions with `out Guid` are not affected. Do this in Phase 6, not Phase 9, so the ARM build starts from correct code. The same rule applies to the new documented `Set` functions, which also take `const GUID*`.
 
+**Status: fixed in Phase 6, confirmed on ARM64 in Phase 9 (2026-11-25).** On a Snapdragon X Elite laptop, the native ARM64 build sets all three stops plugged in and on battery, with no error or crash.
+
 **Status: fixed 2026-11-24.** The declaration (now in `Native/PowerOverlayApi.cs`) is `in Guid`, and the generated marshalling passes a `Guid*`. CsWin32 generates the documented `Set` functions with `in Guid` as well.
 
 ### 4c. Other checks worth adding to Copy diagnostics (Phase 8)

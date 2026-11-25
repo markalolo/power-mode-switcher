@@ -10,7 +10,7 @@ Instructions for Claude Code working in this repo.
 ## The project
 A small WPF widget (C#, .NET 10, `net10.0-windows`) that switches Windows Power Mode with a vertical slider. **PLAN.md is the design reference**: read it before changing behavior, and keep it up to date when the design changes.
 
-Phases 0 to 8 are done. Phase 9 (ARM64, PLAN.md section 8b) is in progress: do not skip the check at the end of it. The repo is also cloned on the ARM laptop, so work may happen on either an x64 or an ARM64 PC; a plain `dotnet build` builds for the PC it runs on.
+Phases 0 to 9 are done (PLAN.md sections 8 and 8b), including the ARM64 builds. The repo is also cloned on the ARM laptop, so work may happen on either an x64 or an ARM64 PC; a plain `dotnet build` builds for the PC it runs on.
 
 ## Critical technical rules
 - Power Mode is controlled through power **overlay schemes** in `powrprof.dll` (`PowerSetActiveOverlayScheme`, `PowerGetActualOverlayScheme`, `PowerRegisterForEffectivePowerModeNotifications`). **Never use `powercfg /setactive`** to switch modes. That changes the power plan, which is the wrong layer on Modern Standby laptops.

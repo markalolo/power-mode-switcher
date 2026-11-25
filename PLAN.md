@@ -250,7 +250,7 @@ Each phase ends with something that can be run and checked by hand. Commit after
 - **Check:** download the .exe from the GitHub Release page, put it in a permanent folder (for example `C:\Tools\PowerModeSwitcher\`), run it, accept SmartScreen once.
 
 ### Status (2026-11-25)
-- Phases 0 to 5 are done. Round 2 Phases 6, 7 and 8 are done too (section 8b). The current release is **v1.2.0**. Phase 9 (ARM64) is built and waiting for its check on the ARM laptop.
+- Phases 0 to 5 are done. Round 2 Phases 6 to 9 are done too (section 8b). The current release is **v1.2.0**; v1.3.0, which adds the two ARM64 files, is next.
 - Added along the way: menu switches for "Show mode names" and "Half-size widget"; one shared light/dark menu for the tray icon and the widget; `--exit` to close a running copy cleanly.
 - Development (Debug) builds do not update Start with Windows; only release builds do.
 - Not yet confirmed in daily use: reboot autostart with the installed copy, sleep/resume (see section 9). Energy Saver detection was added after v1.0.0 (see section 3).
@@ -394,6 +394,7 @@ Started 2026-11-25, when the owner said the Snapdragon (Windows on ARM) laptop w
 - Cross-compiling works both ways: all four files were published on the ARM laptop, with no warnings. Header check: the two x64 files are x64, the two arm64 files are ARM64. Sizes: x64 small 0.8 MB, x64 standalone 148.2 MB, arm64 small 0.8 MB, arm64 standalone 161.5 MB (ARM64 machine code is larger).
 - Both ARM64 files ran `--diagnostics` on the ARM laptop and report "Arm64 process". Before any sighting, the laptop was on Balanced (on battery) and Best performance (plugged in), so the mode set was still undecided (shown as Standard).
 - Mode set: the ARM laptop uses **Standard**, answered in the one-time question on first launch of the 1.3.0 ARM64 build. Its Copy diagnostics readout is in `docs/power-mode-guids.md` section 5 and matches the development laptop's apart from device, architecture and Windows build.
+- **Check passed (2026-11-25):** on the ARM laptop with the local 1.3.0 ARM64 builds. Task Manager shows ARM64. All three stops work plugged in and on battery, including the bottom stop where the old by-value GUID bug crashed, and Settings matches every time. The full section 9 checklist passed. The small arm64 file runs with the installed Arm64 .NET 10 Desktop Runtime. Not released yet; the GitHub workflow has not built the four files yet either (the tag build will be its first run).
 - Version 1.3.0.
 
 ### Optional later
