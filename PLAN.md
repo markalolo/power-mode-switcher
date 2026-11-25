@@ -249,8 +249,8 @@ Each phase ends with something that can be run and checked by hand. Commit after
 - GitHub Actions `release.yml`: on a tag like `v1.0.0`, build on `windows-latest`, publish single-file, attach the .exe to a GitHub Release.
 - **Check:** download the .exe from the GitHub Release page, put it in a permanent folder (for example `C:\Tools\PowerModeSwitcher\`), run it, accept SmartScreen once.
 
-### Status (2026-11-22)
-- Phases 0 to 5 are done. Round 2 Phases 6 and 7 are done too (section 8b). The current release is **v1.1.0**.
+### Status (2026-11-25)
+- Phases 0 to 5 are done. Round 2 Phases 6, 7 and 8 are done too (section 8b). The current release is **v1.2.0**. Phase 9 (ARM64) is next, when the owner says to start it.
 - Added along the way: menu switches for "Show mode names" and "Half-size widget"; one shared light/dark menu for the tray icon and the widget; `--exit` to close a running copy cleanly.
 - Development (Debug) builds do not update Start with Windows; only release builds do.
 - Not yet confirmed in daily use: reboot autostart with the installed copy, sleep/resume (see section 9). Energy Saver detection was added after v1.0.0 (see section 3).
@@ -364,7 +364,7 @@ Replaces the earlier "learn mode" plan. Research and testing showed there are on
 - The app's own last mode for a power source (`LastAppMode...`) is forgotten once Windows reports a different mode there. Before, picking that same mode in Windows Settings later never counted as a sighting.
 - Widget labels: Standard keeps Battery / Balanced / Performance unchanged. Classic uses Recommended / Better performance / Performance; "Better performance" wraps onto two lines.
 - No set-telling signal (8c): the Surface Laptop Go and the development laptop have the same seven PowerSchemes subkeys (both include `961cc777` and `3af9b8d9`), the same plan and personality, and identical API and registry values for the modes both sets share. Only plan name wording and the manufacturer differ, and neither is reliable. So Auto keeps the sighting rule and the one-time question. Both readouts and the comparison are in `docs/power-mode-guids.md` section 5.
-- Check progress: the Surface checks (steps 2 to 4) passed, and both readouts are in the doc (step 6). Still to do: step 1 on the development laptop, the restart part of step 5, and a retest of picking Automatic on the Surface after the change below.
+- **Check passed (2026-11-25):** the development laptop passed every step, including the question's answer sticking after a restart (step 5), the new Automatic behavior below, and the section 9 run-through. The Surface passed steps 2 to 4, and both readouts are in the doc (step 6). The Automatic change below came after the Surface test, so on the Surface it has only been checked with a test program; a retest there is still to come. Released as **v1.2.0** with `PowerModeSwitcher-x64.exe` (844 KB) and `PowerModeSwitcher-x64-standalone.exe` (148 MB); the downloaded small file reports version 1.2.0.
 - Testing lesson: since v1.1.0 the installed copy's process is `PowerModeSwitcher-x64`, and `--exit` from any copy closes every copy. Test scripts must find copies by name prefix and must not restore an old settings.json over the user's.
 
 ### Phase 9: ARM64 builds
