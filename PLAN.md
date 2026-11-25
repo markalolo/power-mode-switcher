@@ -393,6 +393,7 @@ Started 2026-11-25, when the owner said the Snapdragon (Windows on ARM) laptop w
 - NuGet packages: the only one is CsWin32, a build-time source generator with nothing shipped in the app. It generates per architecture from the Windows metadata and supports ARM64. The ARM64 .NET and WPF runtime packs come from nuget.org during restore.
 - Cross-compiling works both ways: all four files were published on the ARM laptop, with no warnings. Header check: the two x64 files are x64, the two arm64 files are ARM64. Sizes: x64 small 0.8 MB, x64 standalone 148.2 MB, arm64 small 0.8 MB, arm64 standalone 161.5 MB (ARM64 machine code is larger).
 - Both ARM64 files ran `--diagnostics` on the ARM laptop and report "Arm64 process". Before any sighting, the laptop was on Balanced (on battery) and Best performance (plugged in), so the mode set was still undecided (shown as Standard).
+- Mode set: the ARM laptop uses **Standard**, answered in the one-time question on first launch of the 1.3.0 ARM64 build. Its Copy diagnostics readout is in `docs/power-mode-guids.md` section 5 and matches the development laptop's apart from device, architecture and Windows build.
 - Version 1.3.0.
 
 ### Optional later
