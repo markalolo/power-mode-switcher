@@ -233,7 +233,7 @@ Each phase ends with something that can be run and checked by hand. Commit after
 - **Check:** download the .exe from the GitHub Release page, put it in a permanent folder (for example `C:\Tools\PowerModeSwitcher\`), run it, accept SmartScreen once.
 
 ### Status (2026-11-22)
-- Phases 0 to 5 are done. The current release is v1.0.1.
+- Phases 0 to 5 are done. Round 2 Phases 6 and 7 are done too (section 8b). The current release is **v1.1.0**.
 - Added along the way: menu switches for "Show mode names" and "Half-size widget"; one shared light/dark menu for the tray icon and the widget; `--exit` to close a running copy cleanly.
 - Development (Debug) builds do not update Start with Windows; only release builds do.
 - Not yet confirmed in daily use: reboot autostart with the installed copy, sleep/resume (see section 9). Energy Saver detection was added after v1.0.0 (see section 3).
@@ -296,6 +296,7 @@ A professional developer reviewed the repo and asked for two changes.
 - Size breakdown of the self-contained app (uncompressed, before the language change): about 172 MB, of which WPF about 43 MB and Windows Forms plus System.Drawing about 23 MB (only used for the tray icon and menu). Replacing the Windows Forms tray icon with direct Windows calls could save a further 20 MB or so; not planned.
 - The standalone .exe was checked to load **no** files from the installed .NET (`C:\Program Files\dotnet`); its WPF native files unpack to `%TEMP%\.net\<exe name>\` on first run. The small .exe loads its runtime from the installed .NET as expected.
 - Start with Windows used to accept only an .exe named exactly `PowerModeSwitcher.exe`, which would have broken with the new names. It now accepts the app's own .exe under any name (but never `dotnet.exe`), keeping a single Run entry.
+- **Check passed (2026-11-24):** released as **v1.1.0** with `PowerModeSwitcher-x64.exe` (808 KB) and `PowerModeSwitcher-x64-standalone.exe` (148 MB). The standalone file was downloaded from the release, installed in place of the old `PowerModeSwitcher.exe`, and runs, with Start with Windows moved to the new file.
 
 ### Phase 8: Learn mode (support any PC's power modes)
 
