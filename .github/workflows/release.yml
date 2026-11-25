@@ -1,11 +1,16 @@
-# Builds PowerModeSwitcher.exe on GitHub.
+# Builds the Power Mode Switcher .exe files on GitHub.
 #
-# - Push a tag like v1.0.0: builds the .exe (version 1.0.0) and attaches it to a new GitHub Release.
-# - "Run workflow" on the Actions tab: test build only. The .exe is kept as a build artifact, no release.
+# - Push a tag like v1.2.3: builds every file below (version 1.2.3) and attaches them to a new GitHub Release.
+# - "Run workflow" on the Actions tab: test build only. The files are kept as a build artifact, no release.
+#
+# Files (one per entry in the "Build the .exe files" step):
+#   PowerModeSwitcher-x64.exe             Intel/AMD, needs the .NET 10 Desktop Runtime (under 1 MB)
+#   PowerModeSwitcher-x64-standalone.exe  Intel/AMD, runs without .NET installed (larger)
+# Phase 9 adds the same two for win-arm64.
 #
 # To make a release:
-#   git tag v1.0.0
-#   git push origin v1.0.0
+#   git tag v1.2.3
+#   git push origin v1.2.3
 
 name: Release
 
@@ -37,20 +42,43 @@ jobs:
           "value=$version" >> $env:GITHUB_OUTPUT
           "Version: $version"
 
-      - name: Build the single-file .exe
+      - name: Build the .exe files
         shell: pwsh
-        run: >
-          dotnet publish src/PowerModeSwitcher
-          -c Release -r win-x64 --self-contained false
-          -p:PublishSingleFile=true -p:DebugType=None
-          -p:Version=${{ steps.version.outputs.value }}
-          -o publish
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = '${{ steps.version.outputs.value }}'
 
-      - name: Keep the .exe as a build artifact
+          # Standalone builds are NOT compressed: compression roughly halves the file but makes the
+          # running app use about 75 MB more memory, which matters for a widget that runs all day.
+          # Trimming (PublishTrimmed) is never used: it is not supported for WPF.
+          $builds = @(
+            @{ Rid = 'win-x64'; Name = 'PowerModeSwitcher-x64.exe';            SelfContained = $false }
+            @{ Rid = 'win-x64'; Name = 'PowerModeSwitcher-x64-standalone.exe'; SelfContained = $true }
+          )
+
+          New-Item -ItemType Directory -Force dist | Out-Null
+          foreach ($b in $builds) {
+            $out = "publish/$($b.Name)"
+            $publishArgs = @(
+              'publish', 'src/PowerModeSwitcher', '-c', 'Release', '-r', $b.Rid,
+              '--self-contained', $b.SelfContained.ToString().ToLower(),
+              '-p:PublishSingleFile=true', '-p:DebugType=None', "-p:Version=$version", '-o', $out
+            )
+            if ($b.SelfContained) { $publishArgs += '-p:IncludeNativeLibrariesForSelfExtract=true' }
+
+            Write-Host "Building $($b.Name)"
+            dotnet @publishArgs
+            if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed for $($b.Name)" }
+
+            Copy-Item "$out/PowerModeSwitcher.exe" "dist/$($b.Name)"
+            Write-Host ("  {0}: {1:N1} MB" -f $b.Name, ((Get-Item "dist/$($b.Name)").Length / 1MB))
+          }
+
+      - name: Keep the files as a build artifact
         uses: actions/upload-artifact@v7
         with:
           name: PowerModeSwitcher-${{ steps.version.outputs.value }}
-          path: publish/PowerModeSwitcher.exe
+          path: dist/*.exe
           if-no-files-found: error
 
       - name: Create the GitHub Release
@@ -59,6 +87,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: >
-          gh release create $env:GITHUB_REF_NAME publish/PowerModeSwitcher.exe
+          gh release create $env:GITHUB_REF_NAME (Get-ChildItem dist/*.exe).FullName
           --title "Power Mode Switcher $env:GITHUB_REF_NAME"
           --generate-notes

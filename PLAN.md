@@ -283,12 +283,19 @@ A professional developer reviewed the repo and asked for two changes.
 | `PowerModeSwitcher-x64.exe` | Yes (under 1 MB) |
 | `PowerModeSwitcher-x64-standalone.exe` | No (larger) |
 
-- Standalone build: `-r win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None`.
+- Standalone build: `-r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None`. (Originally planned with `-p:EnableCompressionInSingleFile=true`; dropped on 2026-11-24, see the notes below.)
 - Do **not** turn on trimming (`PublishTrimmed`). Microsoft does not support trimming for WPF apps and it can break them at run time.
 - Earlier releases attached a file named `PowerModeSwitcher.exe`. The new names replace it. An installed copy keeps working; Start with Windows rewrites its own path on next launch.
 - Update the README with a short "Which file do I download?" section in plain language.
 
 **Check:** tag a release. Run the standalone .exe on a PC (or a fresh Windows user account) without .NET 10 and confirm it runs. Report the final file size.
+
+**Phase 7 notes (2026-11-24):**
+- `SatelliteResourceLanguages=en` in the project: the app is English only, and leaving out the framework's translated resources saves about 6 MB in the standalone file.
+- Compression trade-off, measured on the development laptop: compressed standalone 66.5 MB on disk but about 179 MB private memory while running; uncompressed 148 MB on disk and about 103 MB, the same as the small file (compressed single-file apps unpack their assemblies into memory instead of mapping them from disk). The owner chose **not compressed**, because the widget runs all day.
+- Size breakdown of the self-contained app (uncompressed, before the language change): about 172 MB, of which WPF about 43 MB and Windows Forms plus System.Drawing about 23 MB (only used for the tray icon and menu). Replacing the Windows Forms tray icon with direct Windows calls could save a further 20 MB or so; not planned.
+- The standalone .exe was checked to load **no** files from the installed .NET (`C:\Program Files\dotnet`); its WPF native files unpack to `%TEMP%\.net\<exe name>\` on first run. The small .exe loads its runtime from the installed .NET as expected.
+- Start with Windows used to accept only an .exe named exactly `PowerModeSwitcher.exe`, which would have broken with the new names. It now accepts the app's own .exe under any name (but never `dotnet.exe`), keeping a single Run entry.
 
 ### Phase 8: Learn mode (support any PC's power modes)
 

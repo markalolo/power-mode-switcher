@@ -484,3 +484,6 @@ $RECYCLE.BIN/
 # Power Mode Switcher: never commit local settings
 settings.json
 .claude/settings.local.json
+
+# Local publish output (standalone and per-architecture folders)
+publish-*/

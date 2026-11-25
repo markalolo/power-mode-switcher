@@ -20,6 +20,9 @@
     <!-- WFO0003 asks Windows Forms apps to set DPI awareness in code. This is a WPF app,
          which takes it from app.manifest, so the manifest setting is correct here. -->
     <NoWarn>$(NoWarn);WFO0003</NoWarn>
+    <!-- The app is English only. Leaves out the framework's translated resource files, which saves
+         about 6 MB in the standalone (self-contained) .exe. -->
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
     <!-- Needed by CsWin32's generated declarations and by [LibraryImport]. -->
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <!-- JSON must go through the source-generated AppJsonContext. This makes any reflection-based

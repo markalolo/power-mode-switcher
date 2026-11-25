@@ -12,20 +12,28 @@ It sits on your desktop behind your other windows, starts with Windows, and stay
 
 ## Requirements
 
-- Windows 11 on an x64 PC. It's most useful on laptops, where Windows offers the three Power Mode choices.
-- The [.NET 10 Desktop Runtime (x64)](https://dotnet.microsoft.com/download/dotnet/10.0). If you have the .NET 10 SDK installed, you already have it.
+- Windows 11 on a 64-bit Intel or AMD PC. It's most useful on laptops, where Windows offers the Power Mode choices. (A version for ARM PCs, such as Snapdragon laptops, is planned.)
 - No administrator rights.
+
+## Which file do I download?
+
+Each release has two files. They are the same app.
+
+| File | Size | Use it if |
+|---|---|---|
+| `PowerModeSwitcher-x64-standalone.exe` | about 150 MB | **Not sure? Pick this one.** It runs on its own, with nothing else to install. |
+| `PowerModeSwitcher-x64.exe` | under 1 MB | You already have the [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0) (it comes with the .NET 10 SDK). If it's missing, Windows offers a download link when you start the app. |
+
+Both use about the same memory while running. To check that your PC is Intel or AMD: **Settings > System > About**, where **System type** should say "x64-based processor".
 
 ## Install
 
-1. Open the [Releases page](../../releases) and download `PowerModeSwitcher.exe` from the newest release.
+1. Open the [Releases page](../../releases) and download one of the files from the newest release (see above).
 2. Make a permanent folder for it, for example `C:\Tools\PowerModeSwitcher\`, and move the .exe there. (If you move it later, just run it once from the new spot.)
 3. Double-click it. The first time, Windows SmartScreen may say it "protected your PC" because the app isn't signed. Click **More info**, then **Run anyway**. You only need to do this once per download.
 4. The widget appears in the bottom-right corner of your screen.
 
-If Windows says .NET is missing, it offers a download link. Install the runtime and run the app again.
-
-To update, right-click the tray icon, choose **Exit**, and replace the .exe with the one from the newest release.
+**To update:** right-click the tray icon, choose **Exit**, put the new .exe in the same folder, delete the old one, and run the new one. Your settings stay, and Start with Windows switches to the new file by itself. (Releases before 1.1 had a single file called `PowerModeSwitcher.exe`; delete that one when you switch.)
 
 ## Using it
 
@@ -73,7 +81,8 @@ The menu follows your Windows light or dark mode.
 - Build: `dotnet build`
 - Run: `dotnet run --project src/PowerModeSwitcher`
 - Stop a running copy cleanly: `PowerModeSwitcher.exe --exit`
-- Publish a single .exe: `dotnet publish src/PowerModeSwitcher -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o publish`
+- Publish the small .exe: `dotnet publish src/PowerModeSwitcher -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o publish`
+- Publish the standalone .exe: `dotnet publish src/PowerModeSwitcher -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o publish-standalone` (not compressed on purpose: compression would halve the file but add about 75 MB of memory use; trimming is not supported for WPF).
 - Release: push a tag like `v1.0.0`. GitHub Actions builds the .exe and attaches it to a new release (`.github/workflows/release.yml`).
 - Tray and app icons are made from the knob drawings by `tools/make-icons.ps1`.
 - Power Mode is read and set with the documented Windows 11 functions (`PowerGet/SetUserConfiguredAC/DCPowerMode`), falling back to the undocumented power overlay functions (`powrprof.dll`). It never uses `powercfg`, which changes the power plan, a different layer. See [`docs/power-mode-guids.md`](docs/power-mode-guids.md) for every power mode GUID, `PLAN.md` for the design and `CLAUDE.md` for project rules.

@@ -10,8 +10,9 @@ namespace PowerModeSwitcher.Services;
 internal static class StartupService
 {
     private const string RunKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
+    // One entry whatever the .exe is called (PowerModeSwitcher.exe, PowerModeSwitcher-x64.exe,
+    // PowerModeSwitcher-x64-standalone.exe, ...), so switching files replaces it instead of adding one.
     private const string ValueName = "PowerModeSwitcher";
-    private const string ExeName = "PowerModeSwitcher.exe";
 
     /// <summary>True if the Run key has an entry for this app.</summary>
     public static bool IsEnabled()
@@ -44,10 +45,14 @@ internal static class StartupService
                 return true;
             }
 
+            // The app's own .exe, whatever its file name. Running as "dotnet PowerModeSwitcher.dll"
+            // reports dotnet.exe, which must never be registered.
             string? exePath = Environment.ProcessPath;
-            if (exePath is null || !string.Equals(Path.GetFileName(exePath), ExeName, StringComparison.OrdinalIgnoreCase))
+            if (exePath is null
+                || !string.Equals(Path.GetExtension(exePath), ".exe", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(Path.GetFileName(exePath), "dotnet.exe", StringComparison.OrdinalIgnoreCase))
             {
-                error = "Can't find PowerModeSwitcher.exe to start with Windows.";
+                error = "Can't find the app's .exe to start with Windows.";
                 return false;
             }
 

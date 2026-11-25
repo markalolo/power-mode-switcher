@@ -31,7 +31,7 @@ Phases 0 to 5 are done. Round 2 (PLAN.md section 8b, Phases 6 to 9) is next: wor
 - Build: `dotnet build`
 - Run: `dotnet run --project src/PowerModeSwitcher`
 - Publish (small): `dotnet publish src/PowerModeSwitcher -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o publish`
-- Publish (standalone, from Phase 7): `dotnet publish src/PowerModeSwitcher -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o publish-standalone`
+- Publish (standalone, from Phase 7): `dotnet publish src/PowerModeSwitcher -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o publish-standalone`. No `EnableCompressionInSingleFile`: the owner chose a larger file over about 75 MB more memory use (see PLAN.md Phase 7 notes).
 - Phase 9 adds the same two with `-r win-arm64`.
 - Before asking for a manual test, make sure the build succeeds with no warnings you introduced.
 - Stop any running copy of the app before rebuilding (the .exe is locked while running). Stop it cleanly with `PowerModeSwitcher.exe --exit`; force-killing it leaves a stale tray icon.
