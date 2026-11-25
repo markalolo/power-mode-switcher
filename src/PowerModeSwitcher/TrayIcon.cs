@@ -195,9 +195,10 @@ internal sealed class TrayIcon : IDisposable
             item.Checked = current == stop;
         }
 
-        _autoSetItem.Text = _modeSets.Choice == ModeSetChoice.Auto
-            ? $"Automatic ({(_modeSets.Detected is ModeSetKind detected ? $"{detected}, detected" : "not decided yet")})"
-            : "Automatic";
+        _autoSetItem.Text = _modeSets.Choice != ModeSetChoice.Auto ? "Automatic"
+            : _modeSets.Detected is ModeSetKind detected ? $"Automatic ({detected}, detected)"
+            : _modeSets.UntilDetected is ModeSetKind kept ? $"Automatic ({kept} for now)"
+            : "Automatic (not decided yet)";
         _autoSetItem.Checked = _modeSets.Choice == ModeSetChoice.Auto;
         _standardSetItem.Checked = _modeSets.Choice == ModeSetChoice.Standard;
         _classicSetItem.Checked = _modeSets.Choice == ModeSetChoice.Classic;

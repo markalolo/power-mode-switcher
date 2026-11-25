@@ -124,8 +124,9 @@ public partial class App : Application
     }
 
     /// <summary>
-    /// Shows the one-time "which power modes does Windows show" question while the mode set is
-    /// undecided and the widget is on screen, and closes it if detection decides first.
+    /// Shows the one-time "which power modes does Windows show" question on first run, while nothing is
+    /// known about the mode set and the widget is on screen. Closes it if the set gets decided first
+    /// (detected, or chosen in the menu).
     /// </summary>
     private void UpdateModeSetQuestion()
     {
@@ -133,7 +134,7 @@ public partial class App : Application
 
         if (_question is not null)
         {
-            if (!_modeSets.IsUndecided) _question.Close();
+            if (!_modeSets.NeedsAnswer) _question.Close();
             return;
         }
 

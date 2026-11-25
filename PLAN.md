@@ -171,7 +171,7 @@ Approach, in order:
 
 - **Start with Windows** on by default. Writes `PowerModeSwitcher` to `HKCU\...\Run` pointing at the current .exe path. If the .exe is moved, the next launch rewrites the path.
 - **Single instance:** use a named mutex. A second launch just shows the existing widget and exits.
-- `settings.json` fields: `WindowLeft`, `WindowTop`, `PositionLocked`, `WidgetVisible`, `ShowModeNames`, `HalfSize`, `StartWithWindows`, and from Phase 8 `ModeSet` (Auto/Standard/Classic), `DetectedModeSet`, `ModeSetChosenBy` (Menu/Question), `ModeSetQuestionShown`, `LastAppModePluggedIn`, `LastAppModeOnBattery`. Enums are saved as names.
+- `settings.json` fields: `WindowLeft`, `WindowTop`, `PositionLocked`, `WidgetVisible`, `ShowModeNames`, `HalfSize`, `StartWithWindows`, and from Phase 8 `ModeSet` (Auto/Standard/Classic), `DetectedModeSet`, `ModeSetUntilDetected`, `ModeSetChosenBy` (Menu/Question), `ModeSetQuestionShown`, `LastAppModePluggedIn`, `LastAppModeOnBattery`. Enums are saved as names.
 - Command line: `--exit` closes a running copy; `--diagnostics [file]` writes the Copy diagnostics report to a file (default `%TEMP%\PowerModeSwitcher-diagnostics.txt`) and quits without touching settings.
 - Should not require administrator rights. Verify in phase 1.
 
@@ -336,7 +336,7 @@ Replaces the earlier "learn mode" plan. Research and testing showed there are on
   - Seeing `961cc777` means Standard.
   - Seeing only `00000000` and `ded574b5` means undecided.
 - Save the detected set so it survives restarts. A later outside sighting of the other set's GUID switches it and shows a short tray notification.
-- While undecided, behave as Standard (today's behavior), and show a **one-time question** the first time the widget appears: "Which options does Windows show under Settings > Power mode?" with the two label lists as buttons, plus a button that opens `ms-settings:powersleep`. The answer is saved. Do not ask again unless the user picks Automatic from the menu.
+- While undecided, behave as Standard (today's behavior), and show a **one-time question** the first time the widget appears: "Which options does Windows show under Settings > Power mode?" with the two label lists as buttons, plus a button that opens `ms-settings:powersleep`. The answer is saved. Never ask again: picking Automatic later from the menu keeps the set in use until a sighting decides (changed after the Surface test, see the Phase 8 notes).
 - Right-click menu: **Power mode options** submenu with Automatic, Standard (Best power efficiency / Balanced / Best performance) and Classic (Recommended / Better performance / Best performance), radio-style.
 - Use the two machines' Copy diagnostics output to check whether anything in the registry or the APIs tells the sets apart without a sighting (for example, which overlay subkeys exist). If a reliable signal turns up, use it for Auto and record it in `docs/power-mode-guids.md`. If not, keep the sighting rule and the question.
 
@@ -359,10 +359,12 @@ Replaces the earlier "learn mode" plan. Research and testing showed there are on
 - Plan type: instead of comparing plan GUIDs, the app subscribes to `GUID_POWERSCHEME_PERSONALITY`, so plans derived from Balanced (and PC maker plans) are recognised by their personality. Windows sends it on start and on every plan change; no polling.
 - Both power sources' modes come from the registry values `ActiveOverlayAcPowerScheme` / `ActiveOverlayDcPowerScheme` (they can show `3af9b8d9`), with the documented getters as the fallback. They are re-read with every refresh, so a change to the other power source's mode in Settings is picked up by the 5-second poll.
 - Detection, beyond the plan's "ignore reads within a few seconds": the mode the app itself last set for each power source is saved (`LastAppModePluggedIn` / `LastAppModeOnBattery`) and never counts as a sighting, so a restart can't make the app fool itself either. If both signs are present, Classic wins (1.1.0 may have left `961cc777` behind on a Classic PC; the app only sets `3af9b8d9` when Classic is already in use).
-- Answering the one-time question sets Standard or Classic explicitly (shown checked in the menu); detection then no longer switches it. Picking Automatic clears the detection and allows the question once more.
+- Answering the one-time question sets Standard or Classic explicitly (shown checked in the menu); detection then no longer switches it.
+- Picking Automatic (changed after the Surface test, where it seemed to do nothing): at first it wiped the earlier answer, fell back to Standard and asked the question again. Now, coming from Standard or Classic, it keeps that set (`ModeSetUntilDetected`, menu "Automatic (Classic for now)") until a sighting decides, and never asks again. A tray notification says what it decided, since often nothing visible changes. Detection also notifies whenever it changes the set in use.
+- The app's own last mode for a power source (`LastAppMode...`) is forgotten once Windows reports a different mode there. Before, picking that same mode in Windows Settings later never counted as a sighting.
 - Widget labels: Standard keeps Battery / Balanced / Performance unchanged. Classic uses Recommended / Better performance / Performance; "Better performance" wraps onto two lines.
 - No set-telling signal (8c): the Surface Laptop Go and the development laptop have the same seven PowerSchemes subkeys (both include `961cc777` and `3af9b8d9`), the same plan and personality, and identical API and registry values for the modes both sets share. Only plan name wording and the manufacturer differ, and neither is reliable. So Auto keeps the sighting rule and the one-time question. Both readouts and the comparison are in `docs/power-mode-guids.md` section 5.
-- Check progress: the Surface checks (steps 2 to 4) passed, and both readouts are in the doc (step 6). Still to do: step 1 on the development laptop, and the restart part of step 5.
+- Check progress: the Surface checks (steps 2 to 4) passed, and both readouts are in the doc (step 6). Still to do: step 1 on the development laptop, the restart part of step 5, and a retest of picking Automatic on the Surface after the change below.
 - Testing lesson: since v1.1.0 the installed copy's process is `PowerModeSwitcher-x64`, and `--exit` from any copy closes every copy. Test scripts must find copies by name prefix and must not restore an old settings.json over the user's.
 
 ### Phase 9: ARM64 builds

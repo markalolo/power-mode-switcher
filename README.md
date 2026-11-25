@@ -49,7 +49,7 @@ Both use about the same memory while running. To check that your PC is Intel or 
 
 **The menu** (same from the tray icon or the widget)
 - **The three power modes** (for example Best power efficiency / Balanced / Best performance): switch mode.
-- **Power mode options**: which set of modes your PC's Windows Settings shows. **Automatic** (the default) works it out once you pick a mode in Windows Settings; if it can't tell yet, the app asks you once. You can also pick **Standard** or **Classic** yourself.
+- **Power mode options**: which set of modes your PC's Windows Settings shows. **Automatic** (the default) works it out when you pick Better performance or Best power efficiency in Windows Settings, since each set has only one of them. Until then it keeps the set already in use; on first start, when it can't tell, the app asks you once. You can also pick **Standard** or **Classic** yourself.
 - **Hide widget / Show widget**: the app keeps running in the tray while the widget is hidden.
 - **Lock widget position**: stops accidental dragging.
 - **Show mode names**: turn off to show just the track.

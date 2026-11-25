@@ -39,7 +39,7 @@ internal static class DiagnosticsService
         text.AppendLine($"Power source:   {SourceText(reading.Source)}");
         text.AppendLine($"Energy Saver:   {(reading.EnergySaverOn ? "on" : "off")}");
         text.AppendLine($"Mode set:       {set.Name} ({set.Summary}), {modeSets.HowChosen}");
-        text.AppendLine($"  Setting: {s.ModeSet}; detected: {s.DetectedModeSet?.ToString() ?? "none"}; question shown: {(s.ModeSetQuestionShown ? "yes" : "no")}");
+        text.AppendLine($"  Setting: {s.ModeSet}; detected: {s.DetectedModeSet?.ToString() ?? "none"}; kept until detected: {s.ModeSetUntilDetected?.ToString() ?? "none"}; question shown: {(s.ModeSetQuestionShown ? "yes" : "no")}");
         text.AppendLine($"  Last set by this app: plugged in {Guid(s.LastAppModePluggedIn)}, on battery {Guid(s.LastAppModeOnBattery)}");
         text.AppendLine($"Widget shows:   {WidgetShows(reading, set)}");
         text.AppendLine();

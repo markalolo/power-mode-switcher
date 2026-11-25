@@ -29,6 +29,12 @@ public sealed class AppSettings
     /// <summary>The set Auto detected from modes picked outside the app. Null while undecided.</summary>
     public ModeSetKind? DetectedModeSet { get; set; }
 
+    /// <summary>
+    /// The set Auto uses until it detects one: the set that was in use when Automatic was picked in the
+    /// menu. Null means Standard (and, on first run, that the one-time question may still be asked).
+    /// </summary>
+    public ModeSetKind? ModeSetUntilDetected { get; set; }
+
     /// <summary>How an explicit Standard or Classic choice was made (for diagnostics). Null for Auto.</summary>
     public ModeSetOrigin? ModeSetChosenBy { get; set; }
 
@@ -37,7 +43,8 @@ public sealed class AppSettings
 
     /// <summary>
     /// The mode the app itself last set while plugged in, so set detection never mistakes the app's own
-    /// choice for one made in Windows Settings (also after a restart).
+    /// choice for one made in Windows Settings (also after a restart). Cleared once Windows reports a
+    /// different mode there, because then the mode was changed outside the app.
     /// </summary>
     public Guid? LastAppModePluggedIn { get; set; }
 
