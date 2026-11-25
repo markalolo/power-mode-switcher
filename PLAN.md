@@ -53,12 +53,12 @@ On Modern Standby laptops, Windows 11 usually exposes only the **Balanced** powe
 
 **Source: [`docs/power-mode-guids.md`](docs/power-mode-guids.md), section 1.** That file is the reference for every power mode GUID, its labels and its order; keep this table and the code in step with it. Windows only has these four; PC makers do not add their own (they map their mode names onto these, see section 2 of that file).
 
-| Order (bottom to top) | GUID | Label | Widget today |
+| Order | GUID | Label | Notes |
 |---|---|---|---|
-| 1 | `961cc777-2547-4f9d-8174-7d86181b8a7a` | Best power efficiency (`GUID_POWER_MODE_BEST_EFFICIENCY`) | Bottom stop |
-| 2 | `00000000-0000-0000-0000-000000000000` | Balanced (`GUID_POWER_MODE_NONE`) | Middle stop |
-| 3 | `3af9b8d9-7c97-431d-ad78-34a8bfea439f` | Better performance (Windows 10; not shown in Windows 11 Settings, not in the documented list) | No stop until Phase 8: named "Better performance" in the status line and tooltip, knob hidden |
-| 4 | `ded574b5-45a0-4f42-8737-46345c09c238` | Best performance (`GUID_POWER_MODE_BEST_PERFORMANCE`) | Top stop |
+| 1 | `961cc777-2547-4f9d-8174-7d86181b8a7a` | Best power efficiency (`GUID_POWER_MODE_BEST_EFFICIENCY`) | Standard set only |
+| 2 | `00000000-0000-0000-0000-000000000000` | Balanced (`GUID_POWER_MODE_NONE`) | In both sets, but at a **different stop** in each (middle in Standard, bottom in Classic) |
+| 3 | `3af9b8d9-7c97-431d-ad78-34a8bfea439f` | Better performance (not in the documented list) | Classic set only. Shown in Windows 11 Settings on Classic machines |
+| 4 | `ded574b5-45a0-4f42-8737-46345c09c238` | Best performance (`GUID_POWER_MODE_BEST_PERFORMANCE`) | Top stop in both sets |
 
 `3af9b8d9` is a performance-leaning mode. Before 2026-11-24 the app wrongly treated it as "better battery" and put the knob on the bottom stop. If any other GUID is read, show the slider in a neutral "unknown" state rather than guessing.
 
@@ -73,7 +73,16 @@ On Modern Standby laptops, Windows 11 usually exposes only the **Balanced** powe
 
 The documented API and the undocumented overlay functions were checked against each other on the development laptop (Windows 11 build 26200): same values for both power sources, setting the current value is accepted and changes nothing, and an invalid GUID is rejected with error 87.
 
-**Other PCs may differ** in labels and in the number of options (Windows 10 had four positions on battery). Phase 8 handles this with a learn mode.
+### Mode sets: not every PC offers the same three
+
+Confirmed 2026-11-25 by reading the registry (`ActiveOverlayAcPowerScheme`) while picking each option in Settings on two Windows 11 laptops. Both show three options, but **not the same three**:
+
+| Set | Bottom stop (ice cube) | Middle stop (sailboat) | Top stop (rocket) | Seen on |
+|---|---|---|---|---|
+| **Standard** | `961cc777` Best power efficiency | `00000000` Balanced | `ded574b5` Best performance | Development laptop (Dell, Windows 11) |
+| **Classic** | `00000000` Recommended | `3af9b8d9` Better performance | `ded574b5` Best performance | Surface Laptop (Windows 11) |
+
+Classic machines do not offer `961cc777` at all. Version 1.1.0 assumed Standard everywhere, so on the Surface: Recommended showed the sailboat, Better performance showed no knob, and the bottom stop set `961cc777`, which Windows accepted but Settings could not display. Phase 8 fixes this. Windows 10 is not a target and is untested.
 
 Wrap all of these in one class (`PowerModeService`) so the undocumented parts sit in one place and can be swapped if Windows ever changes them.
 
@@ -298,34 +307,44 @@ A professional developer reviewed the repo and asked for two changes.
 - Start with Windows used to accept only an .exe named exactly `PowerModeSwitcher.exe`, which would have broken with the new names. It now accepts the app's own .exe under any name (but never `dotnet.exe`), keeping a single Run entry.
 - **Check passed (2026-11-24):** released as **v1.1.0** with `PowerModeSwitcher-x64.exe` (808 KB) and `PowerModeSwitcher-x64-standalone.exe` (148 MB). The standalone file was downloaded from the release, installed in place of the old `PowerModeSwitcher.exe`, and runs, with Start with Windows moved to the new file.
 
-### Phase 8: Learn mode (support any PC's power modes)
+### Phase 8: Mode sets and diagnostics
 
-Different PCs (for example a Surface Laptop) show different Power Mode options and labels in Windows Settings. Windows has no public way to list them, so the app learns them from the user.
+Replaces the earlier "learn mode" plan. Research and testing showed there are only four power mode GUIDs and two sets of three (section 3, "Mode sets"), so a learning wizard is not needed. The widget keeps exactly three stops and the same three images; only the GUIDs and labels behind each stop change with the set.
 
-**How it works for the user**
-1. The right-click menu gets **Learn power modes...**, which opens a small, plain wizard window (a normal app window that comes to the front, not the desktop widget). It follows the same light/dark theme as the menu.
-2. Step 1 explains: "Open Windows power settings and pick each Power mode option one at a time. This app will record each one." A button opens Settings directly (`ms-settings:powersleep`).
-3. As the user picks options in Settings, the wizard detects each new power mode GUID (using the existing change notification plus the same read path as the slider: the documented AC/DC functions, with `PowerGetActualOverlayScheme` as the fallback and for `3af9b8d9`) and adds a row: a text box pre-filled with a known label if the GUID is in the built-in table, otherwise blank for the user to type exactly what Windows shows. The documented functions also give the plugged-in and on-battery modes directly, which the wizard can show.
-4. The wizard asks the user to do this both **plugged in and on battery**, because options can differ by power source. It shows "Plugged in" or "On battery" at the top so the user knows which they are on.
-5. Step 2: the user puts the captured modes in order from **most battery saving** (bottom) to **most performance** (top), with up and down buttons.
-6. Save. The widget rebuilds itself with that many stops.
+**8a. Copy diagnostics (build this first)**
+- Right-click menu item **Copy diagnostics** copies plain text to the clipboard: Windows version and build, device manufacturer and model, power source, Energy Saver state, the current mode set and how it was chosen (detected, asked, or picked by the user), the plugged-in and on-battery modes from **both** the documented API and the registry values `ActiveOverlayAcPowerScheme` / `ActiveOverlayDcPowerScheme`, the actual and effective overlay, the effective power mode (`EFFECTIVE_POWER_MODE`), the active power plan GUID and name, and the names of the subkeys under `HKLM\SYSTEM\CurrentControlSet\Control\Power\User\PowerSchemes`.
+- Reading those registry values needs no admin rights. Read only; never write the registry.
 
-**Rules**
-- Supports **2, 3 or 4** stops. Track height and stop spacing adjust; widget width stays the same. Works with both "Show mode names" and "Half-size widget".
-- Knob images: bottom stop is always the ice cube, top stop is always the rocket, any middle stops use the sailboat.
-- Labels on the widget, the menu's mode list and the tray tooltip come from the learned profile.
-- Built-in table: **`docs/power-mode-guids.md` section 1 is the source.** All four GUIDs, in that file's order, with its Windows labels (`961cc777` Best power efficiency, `00000000` Balanced, `3af9b8d9` Better performance, `ded574b5` Best performance). A machine using the three Windows 11 defaults needs no learning. Section 2 of that file (PC maker names such as Eco, Quiet, Turbo) can be offered as optional suggestions in the wizard, but the default labels stay the Windows ones. If the file changes, update the table from it.
-- If the app reads an overlay GUID that is not in the current profile, it shows a tray notification: "This PC has a power mode the app doesn't know yet. Run Learn power modes?" It never guesses.
+**8b. Two built-in mode sets**
+- Define Standard and Classic exactly as in section 3. Each stop has a GUID, a label and a knob image (ice cube, sailboat, rocket from bottom to top).
+- Labels everywhere (widget, menu, tray tooltip) come from the current set: Standard uses "Best power efficiency / Balanced / Best performance"; Classic uses "Recommended / Better performance / Best performance", matching what Windows Settings shows on that machine.
+- Setting a mode: `00000000` and `ded574b5` go through the documented API as today. `3af9b8d9` is not a supported value for the documented API, so set it with `PowerSetActiveOverlayScheme` directly instead of relying on the documented call failing first. Verify on the Surface that Settings then shows "Better Performance".
+- Reading: the reading logic already prefers the overlay when it is `3af9b8d9`. Map every GUID through the current set; a GUID that is not in the current set but is in the other set is a detection signal (8c), not an error.
+
+**8c. Choosing the set**
+- New setting `ModeSet`: `Auto` (default), `Standard` or `Classic`, saved with source-generated JSON.
+- Auto detection, using modes chosen **outside the app** (ignore reads within a few seconds of the app's own set calls, so the app cannot fool itself):
+  - Seeing `3af9b8d9` on either power source means Classic.
+  - Seeing `961cc777` means Standard.
+  - Seeing only `00000000` and `ded574b5` means undecided.
+- Save the detected set so it survives restarts. A later outside sighting of the other set's GUID switches it and shows a short tray notification.
+- While undecided, behave as Standard (today's behavior), and show a **one-time question** the first time the widget appears: "Which options does Windows show under Settings > Power mode?" with the two label lists as buttons, plus a button that opens `ms-settings:powersleep`. The answer is saved. Do not ask again unless the user picks Automatic from the menu.
+- Right-click menu: **Power mode options** submenu with Automatic, Standard (Best power efficiency / Balanced / Best performance) and Classic (Recommended / Better performance / Best performance), radio-style.
+- Use the two machines' Copy diagnostics output to check whether anything in the registry or the APIs tells the sets apart without a sighting (for example, which overlay subkeys exist). If a reliable signal turns up, use it for Auto and record it in `docs/power-mode-guids.md`. If not, keep the sighting rule and the question.
+
+**8d. Edge cases**
+- A GUID in neither set: neutral "unknown" state as today, plus a tray notification suggesting Copy diagnostics. Never guess.
+- Active power plan not Balanced or derived from it: show "Power mode needs the Balanced power plan" in the status line and tooltip, because Windows ignores Power Mode on other plans. List plans at run time (`PowerEnumerate` + `PowerReadFriendlyName`); PC maker plan GUIDs differ per install.
 - Energy Saver handling (section 3) stays as it is.
-- Store the learned profile in `settings.json` (source-generated JSON) as a list of `{ Guid, Label, Position }` plus the Windows version it was learned on.
-- The menu also gets **Copy diagnostics**: copies Windows version and build, device model, power source, Energy Saver state, current actual and effective overlay GUIDs, and the learned profile to the clipboard as plain text, for troubleshooting. Also, from `docs/power-mode-guids.md` section 4c: the active power plan GUID and name (with a warning if it is not Balanced, because Power Mode only applies on Balanced-derived plans; list plans at run time with `PowerEnumerate` + `PowerReadFriendlyName`, since PC maker plan GUIDs differ per install), the plugged-in and on-battery user modes from the documented API, and the effective power mode (`EFFECTIVE_POWER_MODE`, which shows when Energy Saver, Battery Saver or Game Mode is overriding the user's choice).
-- Learning is optional on the development laptop. It must behave exactly as it does today without running it.
+- The development laptop must behave exactly as it does today.
 
 **Check:**
-1. On the development laptop, the app works as before without learning.
-2. On a Surface Laptop, run Learn power modes plugged in and on battery. The widget shows the same labels as Windows, and every stop switches the mode correctly (confirm in Settings each time).
-3. Change the mode in Windows Settings on the Surface; the widget follows.
-4. Copy diagnostics works on both machines.
+1. Development laptop: run the full section 9 checklist. Pick "Best power efficiency" in Windows Settings and confirm the set is Standard; the one-time question does not appear after that.
+2. Surface Laptop, starting from a fresh `settings.json`: pick "Better Performance" in Windows Settings. The widget switches to Classic and shows the sailboat with Classic labels.
+3. On the Surface, click each stop plugged in, then on battery. Settings shows Recommended, Better Performance and Best Performance to match every time. The bottom stop never sets `961cc777`.
+4. On the Surface, change the mode in Windows Settings; the widget follows.
+5. Undecided case: on a fresh `settings.json` where only Balanced or Best performance has been used, the one-time question appears once, and the answer sticks after a restart.
+6. Copy diagnostics works on both machines. Add the two outputs, with serial numbers and user names removed, to `docs/power-mode-guids.md` as reference readouts.
 
 ### Phase 9: ARM64 builds
 
@@ -345,7 +364,7 @@ Different PCs (for example a Surface Laptop) show different Power Mode options a
 - The ARM64 GUID-by-value crash (`docs/power-mode-guids.md` section 4b) is already fixed: every set function passes a pointer. Still test all three stops on the ARM laptop, since that bug only showed on ARM64.
 - Update the README download table.
 
-**Check:** on the ARM laptop, run the ARM64 .exe (install the ARM64 .NET 10 Desktop Runtime for the small one, or use the standalone). Run Learn power modes if needed, then run the full section 9 checklist. In Task Manager's Details tab, add the Architecture column and confirm it shows ARM64, not x64.
+**Check:** on the ARM laptop, run the ARM64 .exe (install the ARM64 .NET 10 Desktop Runtime for the small one, or use the standalone). Check which mode set the ARM laptop uses (Copy diagnostics), then run the full section 9 checklist. In Task Manager's Details tab, add the Architecture column and confirm it shows ARM64, not x64.
 
 ### Optional later
 - Survive Win+D by attaching to the desktop shell (section 4).
@@ -356,7 +375,7 @@ Different PCs (for example a Surface Laptop) show different Power Mode options a
 
 ## 9. Testing checklist
 
-- [ ] Slider sets each of the three modes; Settings page agrees.
+- [ ] Slider sets each of the three modes; Settings page agrees (on Standard and Classic machines).
 - [ ] Changing mode in Settings updates the slider.
 - [ ] Changing mode from the battery flyout updates the slider.
 - [ ] Plug in / unplug updates the slider to that source's saved mode.
@@ -370,7 +389,7 @@ Different PCs (for example a Surface Laptop) show different Power Mode options a
 - [ ] Works after sleep and resume.
 - [ ] No admin prompt at any point.
 - [ ] (From Phase 6) An existing `settings.json` from an older version still loads.
-- [ ] (From Phase 8) Learned profile survives a restart; an unknown GUID triggers the "run Learn" prompt; Copy diagnostics works.
+- [ ] (From Phase 8) The right mode set is in use and its labels match Windows Settings; an unknown GUID shows the neutral state and a notification; Copy diagnostics works.
 
 ---
 

@@ -15,7 +15,7 @@ Phases 0 to 5 are done. Round 2 (PLAN.md section 8b, Phases 6 to 9) is next: wor
 ## Critical technical rules
 - Power Mode is controlled through power **overlay schemes** in `powrprof.dll` (`PowerSetActiveOverlayScheme`, `PowerGetActualOverlayScheme`, `PowerRegisterForEffectivePowerModeNotifications`). **Never use `powercfg /setactive`** to switch modes. That changes the power plan, which is the wrong layer on Modern Standby laptops.
 - Keep native declarations in the `Native/` folder, and keep the power calls in `Services/PowerModeService.cs`.
-- Never assume the development laptop's overlay GUIDs or labels apply to every PC. From Phase 8, labels and stops come from the learned profile, with the built-in table as the default.
+- Never assume the development laptop's power mode GUIDs or labels apply to every PC. There are two mode sets (Standard and Classic, PLAN.md section 3); the same GUID can sit at a different stop in each. From Phase 8, labels and stops come from the current mode set.
 - The app must never require administrator rights.
 - The widget must stay at the bottom of the z-order and never steal focus (see PLAN.md section 4).
 - Keep idle resource use minimal. No busy loops. The only timer is the 5-second safety poll.
