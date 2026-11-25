@@ -12,19 +12,25 @@ It sits on your desktop behind your other windows, starts with Windows, and stay
 
 ## Requirements
 
-- Windows 11 on a 64-bit Intel or AMD PC. It's most useful on laptops, where Windows offers the Power Mode choices. (A version for ARM PCs, such as Snapdragon laptops, is planned.)
+- Windows 11 on a 64-bit PC: Intel or AMD, or ARM (such as Snapdragon laptops). It's most useful on laptops, where Windows offers the Power Mode choices.
 - No administrator rights.
 
 ## Which file do I download?
 
-Each release has two files. They are the same app.
+Each release has four files. They are the same app, built for two kinds of PC.
+
+First, check your PC: **Settings > System > About**, then look at **System type**.
+- "x64-based processor" means Intel or AMD: use an **x64** file.
+- "ARM-based processor" means ARM, such as Snapdragon: use an **arm64** file.
 
 | File | Size | Use it if |
 |---|---|---|
-| `PowerModeSwitcher-x64-standalone.exe` | about 150 MB | **Not sure? Pick this one.** It runs on its own, with nothing else to install. |
-| `PowerModeSwitcher-x64.exe` | under 1 MB | You already have the [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0) (it comes with the .NET 10 SDK). If it's missing, Windows offers a download link when you start the app. |
+| `PowerModeSwitcher-x64-standalone.exe` | about 150 MB | Intel or AMD. **Not sure? Pick this one.** It runs on its own, with nothing else to install. |
+| `PowerModeSwitcher-x64.exe` | under 1 MB | Intel or AMD, and you already have the [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0) (x64). |
+| `PowerModeSwitcher-arm64-standalone.exe` | about 160 MB | ARM. **Not sure? Pick this one.** It runs on its own, with nothing else to install. |
+| `PowerModeSwitcher-arm64.exe` | under 1 MB | ARM, and you already have the [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0) (Arm64). |
 
-Both use about the same memory while running. To check that your PC is Intel or AMD: **Settings > System > About**, where **System type** should say "x64-based processor".
+The standalone and small files use about the same memory while running. If the small file can't find .NET, Windows offers a download link when you start it. The x64 files also run on ARM PCs, because Windows translates them, but the arm64 files are made for ARM and run without translation.
 
 ## Install
 
@@ -81,14 +87,15 @@ The menu follows your Windows light or dark mode.
 
 ## For developers
 
-- Built with C#, WPF and .NET 10 (`net10.0-windows`, x64). The only NuGet package is [CsWin32](https://github.com/microsoft/CsWin32), which generates the Windows API declarations at build time (nothing extra ships with the app). Settings use System.Text.Json source generation.
-- Build: `dotnet build`
+- Built with C#, WPF and .NET 10 (`net10.0-windows`, x64 and ARM64). The only NuGet package is [CsWin32](https://github.com/microsoft/CsWin32), which generates the Windows API declarations at build time (nothing extra ships with the app). Settings use System.Text.Json source generation.
+- Build: `dotnet build` (builds for the PC's own architecture: x64 on Intel/AMD, ARM64 on ARM)
 - Run: `dotnet run --project src/PowerModeSwitcher`
 - Stop a running copy cleanly: `PowerModeSwitcher.exe --exit` (this closes whichever copy is running, whatever its file name).
 - Write the diagnostics report to a file: `PowerModeSwitcher.exe --diagnostics [file]` (read only; safe alongside a running copy).
 - Publish the small .exe: `dotnet publish src/PowerModeSwitcher -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o publish`
 - Publish the standalone .exe: `dotnet publish src/PowerModeSwitcher -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o publish-standalone` (not compressed on purpose: compression would halve the file but add about 75 MB of memory use; trimming is not supported for WPF).
-- Release: push a tag like `v1.0.0`. GitHub Actions builds the .exe and attaches it to a new release (`.github/workflows/release.yml`).
+- For ARM, use `-r win-arm64` instead of `-r win-x64` in either command. Either architecture can be built on either kind of PC.
+- Release: push a tag like `v1.0.0`. GitHub Actions builds the four .exe files and attaches them to a new release (`.github/workflows/release.yml`).
 - Tray and app icons are made from the knob drawings by `tools/make-icons.ps1`.
 - Power Mode is read and set with the documented Windows 11 functions (`PowerGet/SetUserConfiguredAC/DCPowerMode`), falling back to the undocumented power overlay functions (`powrprof.dll`). It never uses `powercfg`, which changes the power plan, a different layer. See [`docs/power-mode-guids.md`](docs/power-mode-guids.md) for every power mode GUID, `PLAN.md` for the design and `CLAUDE.md` for project rules.
 - Built with [Claude Code](https://claude.com/claude-code).

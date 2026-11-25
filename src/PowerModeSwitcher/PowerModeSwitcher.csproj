@@ -8,13 +8,17 @@
     <UseWPF>true</UseWPF>
     <!-- Only for the tray icon (NotifyIcon). The UI itself is WPF. -->
     <UseWindowsForms>true</UseWindowsForms>
-    <PlatformTarget>x64</PlatformTarget>
+    <!-- Architecture: the runtime identifier passed to dotnet publish (-r win-x64 or -r win-arm64)
+         decides it. A plain dotnet build or dotnet run has none, so it builds for the PC's own
+         architecture (x64 on Intel/AMD, arm64 on Snapdragon). It is never AnyCPU, because CsWin32
+         cannot generate GetWindowLongPtr/SetWindowLongPtr for AnyCPU (they exist only on 64-bit). -->
+    <PlatformTarget Condition="'$(RuntimeIdentifier)' == ''">$([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture.ToString().ToLowerInvariant())</PlatformTarget>
     <AssemblyName>PowerModeSwitcher</AssemblyName>
     <RootNamespace>PowerModeSwitcher</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\knob-balanced-sailboat.ico</ApplicationIcon>
     <!-- Release builds from GitHub override this with the tag (v1.2.3 -> 1.2.3). -->
-    <Version>1.2.0</Version>
+    <Version>1.3.0</Version>
     <Product>Power Mode Switcher</Product>
     <Description>Switches the Windows 11 Power Mode with a desktop slider.</Description>
     <!-- WFO0003 asks Windows Forms apps to set DPI awareness in code. This is a WPF app,

@@ -4,9 +4,11 @@
 # - "Run workflow" on the Actions tab: test build only. The files are kept as a build artifact, no release.
 #
 # Files (one per entry in the "Build the .exe files" step):
-#   PowerModeSwitcher-x64.exe             Intel/AMD, needs the .NET 10 Desktop Runtime (under 1 MB)
-#   PowerModeSwitcher-x64-standalone.exe  Intel/AMD, runs without .NET installed (larger)
-# Phase 9 adds the same two for win-arm64.
+#   PowerModeSwitcher-x64.exe               Intel/AMD, needs the .NET 10 Desktop Runtime (under 1 MB)
+#   PowerModeSwitcher-x64-standalone.exe    Intel/AMD, runs without .NET installed (larger)
+#   PowerModeSwitcher-arm64.exe             ARM (Snapdragon), needs the ARM64 .NET 10 Desktop Runtime (under 1 MB)
+#   PowerModeSwitcher-arm64-standalone.exe  ARM (Snapdragon), runs without .NET installed (larger)
+# The ARM64 files are cross-compiled on the x64 runner; the -r runtime identifier picks the architecture.
 #
 # To make a release:
 #   git tag v1.2.3
@@ -52,8 +54,10 @@ jobs:
           # running app use about 75 MB more memory, which matters for a widget that runs all day.
           # Trimming (PublishTrimmed) is never used: it is not supported for WPF.
           $builds = @(
-            @{ Rid = 'win-x64'; Name = 'PowerModeSwitcher-x64.exe';            SelfContained = $false }
-            @{ Rid = 'win-x64'; Name = 'PowerModeSwitcher-x64-standalone.exe'; SelfContained = $true }
+            @{ Rid = 'win-x64';   Name = 'PowerModeSwitcher-x64.exe';              SelfContained = $false }
+            @{ Rid = 'win-x64';   Name = 'PowerModeSwitcher-x64-standalone.exe';   SelfContained = $true }
+            @{ Rid = 'win-arm64'; Name = 'PowerModeSwitcher-arm64.exe';            SelfContained = $false }
+            @{ Rid = 'win-arm64'; Name = 'PowerModeSwitcher-arm64-standalone.exe'; SelfContained = $true }
           )
 
           New-Item -ItemType Directory -Force dist | Out-Null

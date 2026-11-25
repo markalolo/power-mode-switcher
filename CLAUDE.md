@@ -10,7 +10,7 @@ Instructions for Claude Code working in this repo.
 ## The project
 A small WPF widget (C#, .NET 10, `net10.0-windows`) that switches Windows Power Mode with a vertical slider. **PLAN.md is the design reference**: read it before changing behavior, and keep it up to date when the design changes.
 
-Phases 0 to 5 are done. Round 2 (PLAN.md section 8b, Phases 6 to 9) is next: work in order and do not skip the check at the end of each phase. **Do not start Phase 9 (ARM64) until the owner says the ARM laptop is available.**
+Phases 0 to 8 are done. Phase 9 (ARM64, PLAN.md section 8b) is in progress: do not skip the check at the end of it. The repo is also cloned on the ARM laptop, so work may happen on either an x64 or an ARM64 PC; a plain `dotnet build` builds for the PC it runs on.
 
 ## Critical technical rules
 - Power Mode is controlled through power **overlay schemes** in `powrprof.dll` (`PowerSetActiveOverlayScheme`, `PowerGetActualOverlayScheme`, `PowerRegisterForEffectivePowerModeNotifications`). **Never use `powercfg /setactive`** to switch modes. That changes the power plan, which is the wrong layer on Modern Standby laptops.
@@ -32,7 +32,7 @@ Phases 0 to 5 are done. Round 2 (PLAN.md section 8b, Phases 6 to 9) is next: wor
 - Run: `dotnet run --project src/PowerModeSwitcher`
 - Publish (small): `dotnet publish src/PowerModeSwitcher -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o publish`
 - Publish (standalone, from Phase 7): `dotnet publish src/PowerModeSwitcher -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o publish-standalone`. No `EnableCompressionInSingleFile`: the owner chose a larger file over about 75 MB more memory use (see PLAN.md Phase 7 notes).
-- Phase 9 adds the same two with `-r win-arm64`.
+- ARM64 (from Phase 9): the same two commands with `-r win-arm64`. Either architecture can be published on either kind of PC.
 - Before asking for a manual test, make sure the build succeeds with no warnings you introduced.
 - Stop any running copy of the app before rebuilding (the .exe is locked while running). Stop it cleanly with `PowerModeSwitcher.exe --exit`; force-killing it leaves a stale tray icon.
 
