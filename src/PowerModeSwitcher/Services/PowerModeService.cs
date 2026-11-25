@@ -9,12 +9,22 @@ using Windows.Win32.UI.WindowsAndMessaging;
 
 namespace PowerModeSwitcher.Services;
 
-/// <summary>The three slider positions, plus Unknown for an overlay we do not recognize.</summary>
+/// <summary>
+/// The known Windows power modes, ordered from most battery saving to most performance
+/// (docs/power-mode-guids.md, section 1), plus Unknown for a GUID we do not recognize.
+/// </summary>
 public enum PowerMode
 {
     Unknown,
     BestPowerEfficiency,
     Balanced,
+
+    /// <summary>
+    /// Windows 10's "Better performance" (3af9b8d9). Windows 11 Settings does not show it, but some
+    /// machines still use it. The three-stop widget has no stop for it, so it is named but not placed.
+    /// </summary>
+    BetterPerformance,
+
     BestPerformance,
 }
 
@@ -39,21 +49,31 @@ public sealed record PowerModeReading(
     string? Error);
 
 /// <summary>
-/// Reads and sets the Windows 11 Power Mode through power overlay schemes in powrprof.dll,
-/// and raises Changed whenever it changes anywhere (Settings, battery flyout, plugging in, etc.).
-/// This is the only place that calls the power APIs, so the undocumented parts are easy to swap.
+/// Reads and sets the Windows Power Mode, and raises Changed whenever it changes anywhere
+/// (Settings, battery flyout, plugging in, etc.). This is the only place that calls the power APIs.
+/// <para>
+/// Windows 11 documents PowerGet/SetUserConfiguredAC/DCPowerMode, which are used first. The
+/// undocumented overlay functions (Native/PowerOverlayApi.cs) are the fallback for older Windows,
+/// and the only way to see 3af9b8d9, which the documented API does not support.
+/// </para>
 /// Never use "powercfg /setactive" here: that changes the power plan, which is the wrong layer.
 /// </summary>
 public sealed class PowerModeService : IDisposable
 {
-    public static readonly Guid BestPowerEfficiencyOverlay = new("961cc777-2547-4f9d-8174-7d86181b8a7a");
-    public static readonly Guid BalancedOverlay = Guid.Empty;
-    public static readonly Guid BestPerformanceOverlay = new("ded574b5-45a0-4f42-8737-46345c09c238");
+    // Power mode GUIDs. Source and full list: docs/power-mode-guids.md, section 1.
+    // Windows used to call power modes "overlays", hence the names.
+    public static readonly Guid BestPowerEfficiencyOverlay = PInvoke.GUID_POWER_MODE_BEST_EFFICIENCY;
+    public static readonly Guid BalancedOverlay = PInvoke.GUID_POWER_MODE_NONE;
+    public static readonly Guid BestPerformanceOverlay = PInvoke.GUID_POWER_MODE_BEST_PERFORMANCE;
 
-    // Older "Better battery" overlay. Recognized when reading, never written.
-    private static readonly Guid LegacyBetterBatteryOverlay = new("3af9b8d9-7c97-431d-ad78-34a8bfea439f");
+    /// <summary>"Better performance" (internally "High Performance Overlay"). Not in the documented Windows 11 list.</summary>
+    public static readonly Guid BetterPerformanceOverlay = new("3af9b8d9-7c97-431d-ad78-34a8bfea439f");
 
     private static readonly TimeSpan SafetyPollInterval = TimeSpan.FromSeconds(5);
+
+    // The documented functions list "Windows 11" with no build number. If an early Windows 11 build
+    // lacks them, this is set once and the app uses the undocumented functions from then on.
+    private static volatile bool s_documentedApiMissing;
 
     private SynchronizationContext? _uiContext;
 
@@ -116,21 +136,17 @@ public sealed class PowerModeService : IDisposable
         (PowerSource source, bool batterySaverFlag) = ReadPowerSource();
         bool energySaverOn = _energySaverStatus != 0 || batterySaverFlag;
 
-        try
-        {
-            var result = (WIN32_ERROR)PowerOverlayApi.PowerGetActualOverlayScheme(out Guid overlay);
-            if (result != WIN32_ERROR.ERROR_SUCCESS)
-            {
-                return new PowerModeReading(PowerMode.Unknown, Guid.Empty, source, energySaverOn, DescribeError(result));
-            }
+        // The user's chosen mode for the current power source. Both values stay the same while
+        // Energy Saver overrides the mode, so they are the right values for the slider.
+        Guid? configured = TryGetUserConfiguredMode(source);
+        (Guid? overlay, string? overlayError) = TryGetActualOverlay();
 
-            return new PowerModeReading(ModeFromOverlay(overlay), overlay, source, energySaverOn, null);
-        }
-        catch (EntryPointNotFoundException)
-        {
-            return new PowerModeReading(PowerMode.Unknown, Guid.Empty, source, energySaverOn,
-                "This version of Windows does not support reading the power mode.");
-        }
+        // Documented value first. Only the undocumented one can report 3af9b8d9.
+        Guid? mode = overlay == BetterPerformanceOverlay ? overlay : configured ?? overlay;
+
+        return mode is Guid known
+            ? new PowerModeReading(ModeFromOverlay(known), known, source, energySaverOn, null)
+            : new PowerModeReading(PowerMode.Unknown, Guid.Empty, source, energySaverOn, overlayError);
     }
 
     /// <summary>
@@ -145,14 +161,28 @@ public sealed class PowerModeService : IDisposable
             return false;
         }
 
-        try
+        Guid target = OverlayFromMode(mode);
+
+        // Documented Windows 11 API first. The undocumented function is the fallback: older Windows,
+        // an unknown power source, a mode the documented API does not support, or a failure.
+        WIN32_ERROR? documented = TrySetUserConfiguredMode(target, ReadPowerSource().Source);
+        if (documented == WIN32_ERROR.ERROR_SUCCESS)
         {
-            var result = (WIN32_ERROR)PowerOverlayApi.PowerSetActiveOverlayScheme(OverlayFromMode(mode));
-            error = result == WIN32_ERROR.ERROR_SUCCESS ? null : DescribeError(result);
+            error = null;
         }
-        catch (EntryPointNotFoundException)
+        else
         {
-            error = "This version of Windows does not support setting the power mode.";
+            try
+            {
+                var result = (WIN32_ERROR)PowerOverlayApi.PowerSetActiveOverlayScheme(in target);
+                error = result == WIN32_ERROR.ERROR_SUCCESS ? null : DescribeError(result);
+            }
+            catch (EntryPointNotFoundException)
+            {
+                error = documented is WIN32_ERROR code
+                    ? DescribeError(code)
+                    : "This version of Windows does not support setting the power mode.";
+            }
         }
 
         Refresh();
@@ -173,8 +203,9 @@ public sealed class PowerModeService : IDisposable
 
     public static PowerMode ModeFromOverlay(Guid overlay)
     {
-        if (overlay == BestPowerEfficiencyOverlay || overlay == LegacyBetterBatteryOverlay) return PowerMode.BestPowerEfficiency;
+        if (overlay == BestPowerEfficiencyOverlay) return PowerMode.BestPowerEfficiency;
         if (overlay == BalancedOverlay) return PowerMode.Balanced;
+        if (overlay == BetterPerformanceOverlay) return PowerMode.BetterPerformance;
         if (overlay == BestPerformanceOverlay) return PowerMode.BestPerformance;
         return PowerMode.Unknown;
     }
@@ -183,18 +214,86 @@ public sealed class PowerModeService : IDisposable
     {
         PowerMode.BestPowerEfficiency => BestPowerEfficiencyOverlay,
         PowerMode.Balanced => BalancedOverlay,
+        PowerMode.BetterPerformance => BetterPerformanceOverlay,
         PowerMode.BestPerformance => BestPerformanceOverlay,
         _ => throw new ArgumentOutOfRangeException(nameof(mode), mode, "No overlay for this mode."),
     };
 
-    /// <summary>The same wording Windows Settings uses.</summary>
+    /// <summary>The wording Windows uses (Windows 11 Settings; Windows 10 for Better performance).</summary>
     public static string DisplayName(PowerMode mode) => mode switch
     {
         PowerMode.BestPowerEfficiency => "Best power efficiency",
         PowerMode.Balanced => "Balanced",
+        PowerMode.BetterPerformance => "Better performance",
         PowerMode.BestPerformance => "Best performance",
         _ => "Unknown",
     };
+
+    // ---- Reading and setting through the documented API, with the undocumented fallback ----
+
+    private static bool CanUseDocumentedApi(PowerSource source) =>
+        !s_documentedApiMissing && source != PowerSource.Unknown && OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000);
+
+    /// <summary>The documented API supports only the three default Windows 11 modes.</summary>
+    private static bool IsDocumentedMode(Guid mode) =>
+        mode == BestPowerEfficiencyOverlay || mode == BalancedOverlay || mode == BestPerformanceOverlay;
+
+    /// <summary>
+    /// The user's chosen mode for the given power source, from the documented Windows 11 API.
+    /// Null when that API can't be used here or the call fails.
+    /// </summary>
+    private static Guid? TryGetUserConfiguredMode(PowerSource source)
+    {
+        if (!CanUseDocumentedApi(source)) return null;
+        try
+        {
+            Guid mode;
+            uint result = source == PowerSource.PluggedIn
+                ? PInvoke.PowerGetUserConfiguredACPowerMode(out mode)
+                : PInvoke.PowerGetUserConfiguredDCPowerMode(out mode);
+            return result == (uint)WIN32_ERROR.ERROR_SUCCESS ? mode : null;
+        }
+        catch (EntryPointNotFoundException)
+        {
+            s_documentedApiMissing = true;
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Sets the user's chosen mode for the given power source with the documented Windows 11 API.
+    /// Null when that API can't be used (older Windows, unknown power source, or a mode it does not support).
+    /// </summary>
+    private static WIN32_ERROR? TrySetUserConfiguredMode(Guid mode, PowerSource source)
+    {
+        if (!CanUseDocumentedApi(source) || !IsDocumentedMode(mode)) return null;
+        try
+        {
+            uint result = source == PowerSource.PluggedIn
+                ? PInvoke.PowerSetUserConfiguredACPowerMode(in mode)
+                : PInvoke.PowerSetUserConfiguredDCPowerMode(in mode);
+            return (WIN32_ERROR)result;
+        }
+        catch (EntryPointNotFoundException)
+        {
+            s_documentedApiMissing = true;
+            return null;
+        }
+    }
+
+    /// <summary>The active mode from the undocumented overlay function, or an error message.</summary>
+    private static (Guid? Overlay, string? Error) TryGetActualOverlay()
+    {
+        try
+        {
+            var result = (WIN32_ERROR)PowerOverlayApi.PowerGetActualOverlayScheme(out Guid overlay);
+            return result == WIN32_ERROR.ERROR_SUCCESS ? (overlay, null) : (null, DescribeError(result));
+        }
+        catch (EntryPointNotFoundException)
+        {
+            return (null, "This version of Windows does not support reading the power mode.");
+        }
+    }
 
     private void OnSystemPowerModeChanged(object? sender, PowerModeChangedEventArgs e)
     {

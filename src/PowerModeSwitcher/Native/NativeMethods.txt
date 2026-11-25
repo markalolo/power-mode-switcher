@@ -27,6 +27,15 @@ DwmSetWindowAttribute
 DWMWINDOWATTRIBUTE
 DWM_WINDOW_CORNER_PREFERENCE
 
+// Documented Windows 11 power mode API (Services/PowerModeService.cs)
+PowerGetUserConfiguredACPowerMode
+PowerSetUserConfiguredACPowerMode
+PowerGetUserConfiguredDCPowerMode
+PowerSetUserConfiguredDCPowerMode
+GUID_POWER_MODE_BEST_EFFICIENCY
+GUID_POWER_MODE_NONE
+GUID_POWER_MODE_BEST_PERFORMANCE
+
 // Power source, Energy Saver, change notifications (Services/PowerModeService.cs)
 GetSystemPowerStatus
 PowerRegisterForEffectivePowerModeNotifications

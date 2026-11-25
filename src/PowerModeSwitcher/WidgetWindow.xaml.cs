@@ -201,9 +201,10 @@ public partial class WidgetWindow : Window
     {
         HighlightLabel(mode);
 
-        if (mode == PowerMode.Unknown)
+        if (!HasStop(mode))
         {
-            // Neutral state: no knob, no highlighted label. Clicking a stop still works.
+            // Neutral state: no knob, no highlighted label (the status line names the mode).
+            // Clicking a stop still works.
             Knob.Visibility = Visibility.Hidden;
             return;
         }
@@ -261,9 +262,20 @@ public partial class WidgetWindow : Window
             _ => "Power source unknown",
         };
         if (reading.EnergySaverOn) text += " · Energy Saver on";
-        if (reading.Mode == PowerMode.Unknown) text = "Unknown power mode · " + text;
+        if (!HasStop(reading.Mode))
+        {
+            string name = reading.Mode == PowerMode.Unknown ? "Unknown power mode" : PowerModeService.DisplayName(reading.Mode);
+            text = name + " · " + text;
+        }
         return text;
     }
+
+    /// <summary>
+    /// True for modes with a stop on the three-stop widget. Unknown and Better performance (3af9b8d9)
+    /// have none, so the widget shows them without guessing a position.
+    /// </summary>
+    private static bool HasStop(PowerMode mode) =>
+        mode is PowerMode.BestPowerEfficiency or PowerMode.Balanced or PowerMode.BestPerformance;
 
     // ---- Changing the mode ----
 

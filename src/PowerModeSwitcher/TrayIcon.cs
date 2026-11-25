@@ -130,7 +130,8 @@ internal sealed class TrayIcon : IDisposable
         PowerModeReading reading = _powerMode.Current;
         PowerMode mode = reading.Error is null ? reading.Mode : PowerMode.Unknown;
 
-        // There is no icon for an unknown mode; the sailboat is the neutral choice and the tooltip says "Unknown".
+        // Modes without their own icon (Unknown, Better performance) use the sailboat, the neutral
+        // middle icon; the tooltip names the mode.
         _notifyIcon.Icon = _icons.TryGetValue(mode, out DrawingIcon? icon) ? icon : _icons[PowerMode.Balanced];
         _notifyIcon.Text = DescribeForTooltip(reading, mode);
     }
